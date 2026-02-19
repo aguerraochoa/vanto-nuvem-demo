@@ -44,6 +44,47 @@ const defaultFilters = {
   supervisor: "Todos",
 };
 
+const KPI_HELP_TEXT = {
+  "Motor Comercial":
+    "Resume el motor comercial principal: la facturacion depende de cuantas ordenes se generan y del ticket promedio.",
+  Facturación: "Suma de ventas netas del periodo filtrado.",
+  "Órdenes e-comm": "Total de ordenes del canal e-commerce en el periodo filtrado.",
+  "Ticket Promedio": "Facturacion total dividida entre el total de ordenes.",
+  "Margen Bruto % · $":
+    "Margen bruto $ = Facturacion - costo de venta (COGS). Margen bruto % = Margen bruto $ / Facturacion.",
+  EBITDA: "En este demo se estima como 14.5% de la facturacion.",
+  "Fill Rate": "Promedio ponderado por ordenes del porcentaje surtido completo.",
+  "Días de Inventario":
+    "Dias estimados que dura el inventario actual: (Inventario / Costo de venta) x 365.",
+  "% Entregas a Tiempo":
+    "Promedio ponderado por ordenes del porcentaje de entregas dentro del SLA.",
+  "Órdenes / Tickets": "Total de ordenes (tickets) del periodo filtrado.",
+  "Utilidades por Transacción": "Unidades vendidas divididas entre el total de ordenes.",
+  "Margen Bruto": "Margen bruto % = (Facturacion - costo de venta) / Facturacion.",
+  "Descuento Promedio": "Promedio ponderado por facturacion del descuento aplicado.",
+  "Conversión e-comm": "Ordenes e-commerce divididas entre sesiones e-commerce.",
+  Devoluciones: "Promedio ponderado por ordenes del porcentaje de devoluciones.",
+  "% Pedidos a Tiempo":
+    "Promedio ponderado por ordenes del porcentaje de pedidos entregados a tiempo.",
+  "OTIF (On Time In Full)":
+    "Porcentaje de pedidos entregados a tiempo y completos, ponderado por ordenes.",
+  Backorder:
+    "Ordenes en espera por falta de inventario, mostrado como volumen y porcentaje sobre ordenes.",
+  "Stockout Rate": "Promedio ponderado por ordenes del porcentaje de quiebres de inventario.",
+  "Inventario Total": "Suma del valor de inventario del periodo filtrado.",
+  "Costo logístico/orden": "Costo logistico total dividido entre el total de ordenes.",
+  "Headcount actual": "Total de colaboradores activos en la semana mas reciente del rango.",
+  "Vacantes abiertas": "Total de vacantes abiertas en la semana mas reciente.",
+  Rotación: "Promedio ponderado por headcount del porcentaje de rotacion.",
+  "Tiempo de cobertura":
+    "Promedio ponderado por vacantes de los dias que tarda cubrir una posicion.",
+  Ausentismo: "Promedio ponderado por headcount del porcentaje de ausentismo.",
+  "Horas extra":
+    "Horas extra acumuladas y su costo estimado en el modelo (horas x tarifa).",
+  "Costo laboral total": "Suma del costo laboral del periodo filtrado.",
+  "Costo laboral / ventas": "Costo laboral total dividido entre facturacion.",
+};
+
 const model = generateModel();
 const DAY_MS = 24 * 60 * 60 * 1000;
 const datasetDateBounds = getDatasetDateBounds(model.weeks);
@@ -103,6 +144,7 @@ if (!window.echarts) {
 function init() {
   initToolbar();
   initSidebar();
+  initKpiTooltipInteractions();
   renderMenu();
   render();
   window.addEventListener("resize", () => {
@@ -119,6 +161,47 @@ function init() {
       if (!query.matches) closeSidebar();
     });
   }
+}
+
+function initKpiTooltipInteractions() {
+  const onEnter = (event) => {
+    const wrap = event.target.closest(".kpi-help-wrap");
+    if (!wrap || !viewEl.contains(wrap)) return;
+    requestAnimationFrame(() => {
+      positionKpiTooltip(wrap);
+    });
+  };
+
+  viewEl.addEventListener("mouseover", onEnter);
+  viewEl.addEventListener("focusin", onEnter);
+  window.addEventListener("scroll", () => {
+    const active = document.querySelector(".kpi-help-wrap:hover, .kpi-help-wrap:focus-within");
+    if (!active) return;
+    positionKpiTooltip(active);
+  }, true);
+}
+
+function positionKpiTooltip(wrap) {
+  const tooltip = wrap.querySelector(".kpi-help-tooltip");
+  if (!tooltip) return;
+
+  const margin = 8;
+  const offset = 10;
+  const wrapRect = wrap.getBoundingClientRect();
+  const tooltipRect = tooltip.getBoundingClientRect();
+
+  let top = wrapRect.top - tooltipRect.height - offset;
+  if (top < margin) top = wrapRect.bottom + offset;
+
+  if (top + tooltipRect.height > window.innerHeight - margin) {
+    top = Math.max(margin, window.innerHeight - tooltipRect.height - margin);
+  }
+
+  let left = wrapRect.left + wrapRect.width / 2 - tooltipRect.width / 2;
+  left = Math.max(margin, Math.min(left, window.innerWidth - tooltipRect.width - margin));
+
+  tooltip.style.top = `${Math.round(top)}px`;
+  tooltip.style.left = `${Math.round(left)}px`;
 }
 
 function initToolbar() {
@@ -599,14 +682,13 @@ function getLyPeriodHR(currentRows, currentRange = state.dateRange) {
 function renderExecutive() {
   const records = getFilteredRecords(model.records);
   if (!records.length) {
-    renderNoDataState(DASHBOARDS[0].objective);
+    renderNoDataState();
     return;
   }
   const lyRecords = getLyPeriodRecords(model.records, records);
   const data = executiveData(records, lyRecords);
 
   viewEl.innerHTML = `
-    ${objectiveHTML(data.objective)}
     ${scorecardsHTML(data.scorecards)}
     <section class="grid">
       <article class="card span-8">
@@ -638,7 +720,7 @@ function renderExecutive() {
       </article>
       <article class="card span-7">
         <h4>Mapa Comercial por Estado</h4>
-        <p class="sub">Ventas acumuladas (MXN)</p>
+        <p class="sub">Ventas acumuladas</p>
         <div id="exec-map" class="chart map-chart"></div>
         <div class="chart-legend legend-map">
           <span>Bajo</span>
@@ -677,14 +759,13 @@ function renderExecutive() {
 function renderCommercial() {
   const records = getFilteredRecords(model.records);
   if (!records.length) {
-    renderNoDataState(DASHBOARDS[1].objective);
+    renderNoDataState();
     return;
   }
   const lyRecords = getLyPeriodRecords(model.records, records);
   const data = commercialData(records, lyRecords);
 
   viewEl.innerHTML = `
-    ${objectiveHTML(data.objective)}
     ${scorecardsHTML(data.scorecards)}
     <section class="grid">
       <article class="card span-5">
@@ -699,7 +780,7 @@ function renderCommercial() {
       </article>
 
       <article class="card span-6">
-        <h4>Crecimiento vs LY por tienda/categoría</h4>
+        <h4>Crecimiento vs AA por tienda/categoría</h4>
         <p class="sub">Heatmap de variación %</p>
         <div id="com-heatmap" class="chart tall"></div>
         <div class="chart-legend legend-heat">
@@ -748,14 +829,13 @@ function renderCommercial() {
 function renderLogistics() {
   const records = getFilteredRecords(model.records);
   if (!records.length) {
-    renderNoDataState(DASHBOARDS[2].objective);
+    renderNoDataState();
     return;
   }
   const lyRecords = getLyPeriodRecords(model.records, records);
   const data = logisticsData(records, lyRecords);
 
   viewEl.innerHTML = `
-    ${objectiveHTML(data.objective)}
     ${scorecardsHTML(data.scorecards)}
     <section class="grid">
       <article class="card span-8">
@@ -832,7 +912,7 @@ function renderHR() {
   const records = getFilteredRecords(model.records);
   const hrRecords = getFilteredHR();
   if (!hrRecords.length) {
-    renderNoDataState(DASHBOARDS[3].objective);
+    renderNoDataState();
     return;
   }
   const lyRecords = getLyPeriodRecords(model.records, records);
@@ -840,7 +920,6 @@ function renderHR() {
   const data = hrData(records, hrRecords, lyRecords, lyHR);
 
   viewEl.innerHTML = `
-    ${objectiveHTML(data.objective)}
     ${scorecardsHTML(data.scorecards)}
     <section class="grid">
       <article class="card span-6">
@@ -918,6 +997,7 @@ function executiveData(records, lyRecords = []) {
   const lyCogs = sum(lyRecords, "cogs");
   const lyDoh = (lyInventory / Math.max(lyCogs * 52, 1)) * 365;
   const lyOtd = weightedAvg(lyRecords, "otd", "orders");
+  const lyOrdersEcom = sum(lyRecords.filter((r) => r.channel === "E-commerce"), "orders");
 
   const weekMap = aggregateBy(records, "weekLabel", (acc, rec) => {
     acc.sales += rec.netSales;
@@ -997,14 +1077,16 @@ function executiveData(records, lyRecords = []) {
   return {
     objective: DASHBOARDS[0].objective,
     scorecards: [
-      score("Ventas Netas (MXN)", formatCompactMXN(sales), trendPct(sales, lySales), "vs LY"),
-      score("Margen Bruto % / $", `${formatPct(marginPct)} · ${formatCompactMXN(margin)}`, trendPct(marginPct, lyMarginPct), "vs LY"),
-      score("EBITDA", formatCompactMXN(ebitda), trendPct(ebitda, lySales * 0.145), "vs LY"),
-      score("Órdenes e-comm", formatInt(ordersEcom), trendPct(ordersEcom, sum(lyRecords.filter((r) => r.channel === "E-commerce"), "orders")), "vs LY"),
-      score("Ticket Promedio", formatMXN(aov), trendPct(aov, lyAov), "vs LY"),
-      score("Fill Rate", formatPct(fill), trendPct(fill, lyFill), "vs LY"),
-      score("Días de Inventario", `${formatDecimal(doh, 1)} días`, trendLowerBetter(doh, lyDoh), "vs LY"),
-      score("% Entregas a Tiempo", formatPct(otd), trendPct(otd, lyOtd), "vs LY"),
+      scoreBundle("Motor Comercial", "Facturación = Órdenes e-comm x Ticket Promedio", [
+        { label: "Facturación", value: formatCompactMXN(sales), trend: trendPct(sales, lySales), note: "vs AA" },
+        { label: "Órdenes e-comm", value: formatInt(ordersEcom), trend: trendPct(ordersEcom, lyOrdersEcom), note: "vs AA" },
+        { label: "Ticket Promedio", value: formatMXN(aov), trend: trendPct(aov, lyAov), note: "vs AA" },
+      ]),
+      score("Margen Bruto % · $", `${formatPct(marginPct)} · ${formatCompactMXN(margin)}`, trendPct(marginPct, lyMarginPct), "vs AA"),
+      score("EBITDA", formatCompactMXN(ebitda), trendPct(ebitda, lySales * 0.145), "vs AA"),
+      score("Fill Rate", formatPct(fill), trendPct(fill, lyFill), "vs AA"),
+      score("Días de Inventario", `${formatDecimal(doh, 1)} días`, trendLowerBetter(doh, lyDoh), "vs AA"),
+      score("% Entregas a Tiempo", formatPct(otd), trendPct(otd, lyOtd), "vs AA"),
     ],
     weekLabels,
     weekSales,
@@ -1203,14 +1285,14 @@ function commercialData(records, lyRecords = []) {
   return {
     objective: DASHBOARDS[1].objective,
     scorecards: [
-      score("Ventas Netas", formatCompactMXN(sales), trendPct(sales, lySales), "vs LY"),
-      score("Órdenes / Tickets", formatInt(orders), trendPct(orders, sum(lyRecords, "orders")), "vs LY"),
-      score("Ticket Promedio", formatMXN(aov), trendPct(aov, lyAov), "vs LY"),
-      score("Utilidades por Transacción", formatDecimal(upt, 2), trendPct(upt, lyUpt), "vs LY"),
-      score("Margen Bruto", formatPct(marginPct), trendPct(marginPct, lyMarginPct), "vs LY"),
-      score("Descuento Promedio", formatPct(discount), trendLowerBetter(discount, lyDiscount), "vs LY"),
-      score("Conversión e-comm", formatPct(conv), trendPct(conv, lyConv), "vs LY"),
-      score("Devoluciones", formatPct(returns), trendLowerBetter(returns, lyReturns), "vs LY"),
+      score("Facturación", formatCompactMXN(sales), trendPct(sales, lySales), "vs AA"),
+      score("Órdenes / Tickets", formatInt(orders), trendPct(orders, sum(lyRecords, "orders")), "vs AA"),
+      score("Ticket Promedio", formatMXN(aov), trendPct(aov, lyAov), "vs AA"),
+      score("Utilidades por Transacción", formatDecimal(upt, 2), trendPct(upt, lyUpt), "vs AA"),
+      score("Margen Bruto", formatPct(marginPct), trendPct(marginPct, lyMarginPct), "vs AA"),
+      score("Descuento Promedio", formatPct(discount), trendLowerBetter(discount, lyDiscount), "vs AA"),
+      score("Conversión e-comm", formatPct(conv), trendPct(conv, lyConv), "vs AA"),
+      score("Devoluciones", formatPct(returns), trendLowerBetter(returns, lyReturns), "vs AA"),
     ],
     funnel,
     categoryTop,
@@ -1357,14 +1439,14 @@ function logisticsData(records, lyRecords = []) {
   return {
     objective: DASHBOARDS[2].objective,
     scorecards: [
-      score("% Pedidos a Tiempo", formatPct(otd), trendPct(otd, lyOtd), "vs LY"),
-      score("OTIF (On Time In Full)", formatPct(otif), trendPct(otif, lyOtif), "vs LY"),
-      score("Fill Rate", formatPct(fill), trendPct(fill, lyFill), "vs LY"),
-      score("Backorder", `${formatInt(backorders)} (${formatPct(backorderPct)})`, trendLowerBetter(backorderPct, lyBackorderPct), "vs LY"),
-      score("Stockout Rate", formatPct(stockout), trendLowerBetter(stockout, lyStockout), "vs LY"),
-      score("Inventario Total", formatCompactMXN(inventory), trendPct(inventory, lyInventory), "vs LY"),
-      score("Días de Inventario", `${formatDecimal(doh, 1)} días`, trendLowerBetter(doh, lyDoh), "vs LY"),
-      score("Costo logístico/orden", formatMXN(costPerOrder), trendLowerBetter(costPerOrder, lyCostPerOrder), "vs LY"),
+      score("% Pedidos a Tiempo", formatPct(otd), trendPct(otd, lyOtd), "vs AA"),
+      score("OTIF (On Time In Full)", formatPct(otif), trendPct(otif, lyOtif), "vs AA"),
+      score("Fill Rate", formatPct(fill), trendPct(fill, lyFill), "vs AA"),
+      score("Backorder", `${formatInt(backorders)} (${formatPct(backorderPct)})`, trendLowerBetter(backorderPct, lyBackorderPct), "vs AA"),
+      score("Stockout Rate", formatPct(stockout), trendLowerBetter(stockout, lyStockout), "vs AA"),
+      score("Inventario Total", formatCompactMXN(inventory), trendPct(inventory, lyInventory), "vs AA"),
+      score("Días de Inventario", `${formatDecimal(doh, 1)} días`, trendLowerBetter(doh, lyDoh), "vs AA"),
+      score("Costo logístico/orden", formatMXN(costPerOrder), trendLowerBetter(costPerOrder, lyCostPerOrder), "vs AA"),
     ],
     weekLabels,
     weekOTD,
@@ -1496,14 +1578,14 @@ function hrData(records, hrRecords, lyRecords = [], lyHR = []) {
   return {
     objective: DASHBOARDS[3].objective,
     scorecards: [
-      score("Headcount actual", formatInt(headcount), trendPct(headcount, lyHeadcount), "vs LY"),
-      score("Vacantes abiertas", formatInt(vacancies), trendLowerBetter(vacancies, lyVacancies), "vs LY"),
-      score("Rotación", formatPct(turnover), trendLowerBetter(turnover, lyTurnover), "vs LY"),
-      score("Tiempo de cobertura", `${formatDecimal(daysToFill, 1)} días`, trendLowerBetter(daysToFill, lyDaysToFill), "vs LY"),
-      score("Ausentismo", formatPct(absenteeism), trendLowerBetter(absenteeism, lyAbsenteeism), "vs LY"),
-      score("Horas extra", `${formatInt(overtimeHours)} hrs / ${formatMXN(overtimeCost)}`, trendLowerBetter(overtimeHours, lyOvertimeHours), "vs LY"),
-      score("Costo laboral total", formatCompactMXN(laborCost), trendPct(laborCost, lyLaborCost), "vs LY"),
-      score("Costo laboral / ventas", formatPct(laborVsSales), trendLowerBetter(laborVsSales, lyLaborVsSales), "vs LY"),
+      score("Headcount actual", formatInt(headcount), trendPct(headcount, lyHeadcount), "vs AA"),
+      score("Vacantes abiertas", formatInt(vacancies), trendLowerBetter(vacancies, lyVacancies), "vs AA"),
+      score("Rotación", formatPct(turnover), trendLowerBetter(turnover, lyTurnover), "vs AA"),
+      score("Tiempo de cobertura", `${formatDecimal(daysToFill, 1)} días`, trendLowerBetter(daysToFill, lyDaysToFill), "vs AA"),
+      score("Ausentismo", formatPct(absenteeism), trendLowerBetter(absenteeism, lyAbsenteeism), "vs AA"),
+      score("Horas extra", `${formatInt(overtimeHours)} hrs / ${formatMXN(overtimeCost)}`, trendLowerBetter(overtimeHours, lyOvertimeHours), "vs AA"),
+      score("Costo laboral total", formatCompactMXN(laborCost), trendPct(laborCost, lyLaborCost), "vs AA"),
+      score("Costo laboral / ventas", formatPct(laborVsSales), trendLowerBetter(laborVsSales, lyLaborVsSales), "vs AA"),
     ],
     turnoverByStore,
     weekLabels,
@@ -1516,13 +1598,8 @@ function hrData(records, hrRecords, lyRecords = [], lyHR = []) {
   };
 }
 
-function objectiveHTML(text) {
-  return `<section class="objective"><p class="label">Objetivo</p><p class="text">${text}</p></section>`;
-}
-
-function renderNoDataState(objectiveText) {
+function renderNoDataState() {
   viewEl.innerHTML = `
-    ${objectiveHTML(objectiveText)}
     <section class="grid">
       <article class="card span-12">
         <h4>Sin datos para el rango seleccionado</h4>
@@ -1535,25 +1612,67 @@ function renderNoDataState(objectiveText) {
 
 function scorecardsHTML(items) {
   return `<section class="score-grid">${items
-    .map(
-      (s) => `
+    .map((s) => (s.type === "bundle" ? scoreBundleHTML(s) : scorecardHTML(s)))
+    .join("")}</section>`;
+}
+
+function scorecardHTML(s) {
+  return `
       <article class="score">
         <div class="score-main">
-          <p class="title">${s.title}</p>
+          ${kpiCaptionHTML(s.title, "title")}
           <p class="value">${s.value}</p>
           <p class="meta"><span class="pill ${trendClass(s.trend)}">${formatTrend(s.trend)}</span>${s.note}</p>
         </div>
       </article>
-    `,
-    )
-    .join("")}</section>`;
+    `;
+}
+
+function scoreBundleHTML(bundle) {
+  return `
+      <article class="score score-bundle">
+        <div class="score-main">
+          ${kpiCaptionHTML(bundle.title, "title")}
+          <p class="score-bundle-formula">${bundle.formula}</p>
+          <div class="score-bundle-grid">
+            ${bundle.items
+              .map(
+                (item) => `
+              <div class="score-bundle-item">
+                ${kpiCaptionHTML(item.label, "bundle-label")}
+                <p class="bundle-value">${item.value}</p>
+                <p class="bundle-meta"><span class="pill ${trendClass(item.trend)}">${formatTrend(item.trend)}</span>${item.note}</p>
+              </div>
+            `,
+              )
+              .join("")}
+          </div>
+        </div>
+      </article>
+    `;
+}
+
+function kpiCaptionHTML(label, className) {
+  const helpText = KPI_HELP_TEXT[label];
+  const safeLabel = escapeHtml(label);
+  if (!helpText) return `<p class="${className}">${safeLabel}</p>`;
+  const safeHelp = escapeHtml(helpText);
+  return `
+    <p class="${className} kpi-caption">
+      <span>${safeLabel}</span>
+      <span class="kpi-help-wrap">
+        <button type="button" class="kpi-help-btn" aria-label="Como se calcula ${safeLabel}">?</button>
+        <span class="kpi-help-tooltip" role="tooltip">${safeHelp}</span>
+      </span>
+    </p>
+  `;
 }
 
 function topStoresTable(rows) {
   return `
     <div class="table-wrap">
       <table class="table">
-        <thead><tr><th>#</th><th>Tienda</th><th>Ventas</th><th>Margen %</th><th>OTD</th><th>Crec. LY</th><th>Semáforo</th></tr></thead>
+        <thead><tr><th>#</th><th>Tienda</th><th>Ventas</th><th>Margen %</th><th>OTD</th><th>Crec. AA</th><th>Semáforo</th></tr></thead>
         <tbody>
           ${rows
             .map((r, i) => `<tr><td>${i + 1}</td><td>${r.name}</td><td>${formatCompactMXN(r.sales)}</td><td>${formatPct(r.marginPct)}</td><td>${formatPct(r.otd)}</td><td>${formatTrend(r.growthPct)}</td><td class="${r.status.className}">${r.status.label}</td></tr>`)
@@ -2229,6 +2348,19 @@ function score(title, value, trend, note) {
   return { title, value, trend, note };
 }
 
+function scoreBundle(title, formula, items) {
+  return { type: "bundle", title, formula, items };
+}
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function trendClass(value) {
   if (value >= 2) return "up";
   if (value <= -2) return "down";
@@ -2260,9 +2392,15 @@ function formatMXN(value) {
   return new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 }).format(value || 0);
 }
 
+function shouldExpandCurrency() {
+  if (typeof window === "undefined") return false;
+  return window.innerWidth >= 1200;
+}
+
 function formatCompactMXN(value) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return "$0";
+  if (shouldExpandCurrency()) return formatMXN(numeric);
   const sign = numeric < 0 ? "-" : "";
   const abs = Math.abs(numeric);
   if (abs < 1000) return formatMXN(numeric);

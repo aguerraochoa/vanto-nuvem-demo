@@ -537,6 +537,13 @@ select {
   font-size: 12px;
 }
 
+.kpi-caption {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
 .score .value {
   margin-top: 8px;
   font-size: 23px;
@@ -551,6 +558,111 @@ select {
   align-items: center;
   justify-content: center;
   gap: 7px;
+  flex-wrap: wrap;
+}
+
+.score-bundle {
+  grid-column: span 2;
+  justify-content: flex-start;
+  text-align: left;
+}
+
+.score-bundle .title {
+  text-align: left;
+}
+
+.score-bundle .kpi-caption {
+  justify-content: flex-start;
+}
+
+.score-bundle-formula {
+  margin-top: 3px;
+  color: #5f7894;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.score-bundle-grid {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.score-bundle-item {
+  border: 1px solid #d6e6f4;
+  border-radius: 10px;
+  background: #f7fbff;
+  padding: 8px;
+  min-width: 0;
+}
+
+.bundle-label {
+  color: #4a6684;
+  font-size: 11px;
+}
+
+.kpi-help-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.kpi-help-btn {
+  border: 1px solid #c7daea;
+  background: #eef5fc;
+  color: #4b6886;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 0;
+  cursor: help;
+}
+
+.kpi-help-btn:focus-visible {
+  outline: 2px solid #79a9d2;
+  outline-offset: 1px;
+}
+
+.kpi-help-tooltip {
+  position: fixed;
+  z-index: 50;
+  left: 0;
+  top: 0;
+  transform: none;
+  width: min(260px, 72vw);
+  background: #143553;
+  color: #f7fbff;
+  border-radius: 8px;
+  padding: 8px 9px;
+  font-size: 11px;
+  line-height: 1.35;
+  box-shadow: 0 10px 22px rgba(5, 25, 44, 0.24);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.16s ease;
+}
+
+.kpi-help-wrap:hover .kpi-help-tooltip,
+.kpi-help-wrap:focus-within .kpi-help-tooltip {
+  opacity: 1;
+}
+
+.bundle-value {
+  margin-top: 4px;
+  font-size: 18px;
+  font-family: "Sora", "Manrope", sans-serif;
+}
+
+.bundle-meta {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   flex-wrap: wrap;
 }
 
@@ -947,6 +1059,14 @@ select {
   }
 
   .score-grid { grid-template-columns: 1fr; }
+
+  .score-bundle {
+    grid-column: span 1;
+  }
+
+  .score-bundle-grid {
+    grid-template-columns: 1fr;
+  }
 
   .chart {
     min-height: 220px;
