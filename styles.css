@@ -521,13 +521,15 @@ select {
   background: rgba(255, 255, 255, 0.95);
   box-shadow: var(--shadow);
   padding: 11px;
-  position: relative;
-  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
 }
 
 .score-main {
   min-width: 0;
-  padding-right: 104px;
+  width: 100%;
 }
 
 .score .title {
@@ -547,27 +549,9 @@ select {
   font-size: 12px;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 7px;
   flex-wrap: wrap;
-}
-
-.score-spark-wrap {
-  position: absolute;
-  right: 12px;
-  top: 12px;
-  bottom: 12px;
-  width: 88px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-}
-
-.score-spark {
-  width: 88px;
-  height: 38px;
-  display: block;
-  opacity: 0.95;
 }
 
 .pill {
@@ -963,18 +947,6 @@ select {
   }
 
   .score-grid { grid-template-columns: 1fr; }
-
-  .score {
-    padding-right: 11px;
-  }
-
-  .score-main {
-    padding-right: 0;
-  }
-
-  .score-spark-wrap {
-    display: none;
-  }
 
   .chart {
     min-height: 220px;

@@ -1,25 +1,25 @@
 const DASHBOARDS = [
   {
     id: "ejecutivo",
-    label: "Dashboard Ejecutivo",
+    label: "Informe Ejecutivo",
     objective:
       "Salud del negocio en una sola vista: ventas, margen, inventario, servicio al cliente y conversión de efectivo.",
   },
   {
     id: "comercial",
-    label: "Dashboard Comercial",
+    label: "Informe Comercial",
     objective:
       "Performance comercial por canal: conversión, promociones, pricing, margen y productos clave.",
   },
   {
     id: "logistica",
-    label: "Dashboard Logística",
+    label: "Informe Logística",
     objective:
       "Disponibilidad, rotación, quiebres, lead times, entregas a tiempo y costos logísticos.",
   },
   {
     id: "rh",
-    label: "Dashboard Recursos Humanos",
+    label: "Informe Recursos Humanos",
     objective:
       "Dotación, rotación, ausentismo, productividad, capacitación y costo laboral.",
   },
@@ -68,7 +68,15 @@ const chartColors = {
 };
 const palette = [chartColors.primary, chartColors.navy, chartColors.sky, chartColors.orange, chartColors.red, chartColors.yellow, chartColors.green];
 const MEXICO_MAP_NAME = "mexico-states";
-const MEXICO_GEOJSON_URL = "https://code.highcharts.com/mapdata/countries/mx/mx-all.geo.json";
+const MEXICO_GEOJSON_URLS = [
+  "https://code.highcharts.com/mapdata/countries/mx/mx-all.geo.json",
+  "https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/mexico.geojson",
+];
+const MEXICO_MAP_SCRIPT_URLS = [
+  "https://cdn.jsdelivr.net/npm/echarts-countries-js@1.0.5/echarts-countries-js/Mexico.js",
+  "https://unpkg.com/echarts-countries-js@1.0.5/echarts-countries-js/Mexico.js",
+];
+const MEXICO_MAP_CANDIDATE_NAMES = ["Mexico", "mexico", "MX", "mx", "México", "MEXICO"];
 let mexicoMapPromise = null;
 let dateRangePicker = null;
 
@@ -232,8 +240,9 @@ function getDatasetDateBounds(weeks) {
 }
 
 function getInitialDateRange(bounds) {
-  const to = bounds.max;
-  const from = shiftIsoDate(to, -89);
+  const to = bounds?.max || datasetDateBounds.max;
+  const toDate = isoToDate(to);
+  const from = dateToIso(new Date(Date.UTC(toDate.getUTCFullYear(), toDate.getUTCMonth(), 1)));
   return clampRangeToDataset({ from, to });
 }
 
@@ -564,26 +573,11 @@ function getFilteredHR(dateRange = state.dateRange) {
   return model.hrRecords.filter((record) => matchesHRFilters(record, { includeDate: true, dateRange }));
 }
 
-function getPreviousDateRange(currentRange = state.dateRange) {
-  const windowDays = diffDaysInclusive(currentRange.from, currentRange.to);
-  const to = shiftIsoDate(currentRange.from, -1);
-  const from = shiftIsoDate(to, -(windowDays - 1));
-  return { from, to };
-}
-
 function getLyDateRange(currentRange = state.dateRange) {
   return {
     from: shiftIsoYear(currentRange.from, -1),
     to: shiftIsoYear(currentRange.to, -1),
   };
-}
-
-function getPreviousPeriodRecords(source, currentRows, currentRange = state.dateRange) {
-  if (!currentRows.length) return [];
-  const previousRange = getPreviousDateRange(currentRange);
-  return source.filter((record) =>
-    matchesRecordFilters(record, { includeDate: true, dateRange: previousRange }),
-  );
 }
 
 function getLyPeriodRecords(source, currentRows, currentRange = state.dateRange) {
@@ -594,11 +588,11 @@ function getLyPeriodRecords(source, currentRows, currentRange = state.dateRange)
   );
 }
 
-function getPreviousPeriodHR(currentRows, currentRange = state.dateRange) {
+function getLyPeriodHR(currentRows, currentRange = state.dateRange) {
   if (!currentRows.length) return [];
-  const previousRange = getPreviousDateRange(currentRange);
+  const lyRange = getLyDateRange(currentRange);
   return model.hrRecords.filter((record) =>
-    matchesHRFilters(record, { includeDate: true, dateRange: previousRange }),
+    matchesHRFilters(record, { includeDate: true, dateRange: lyRange }),
   );
 }
 
@@ -609,8 +603,7 @@ function renderExecutive() {
     return;
   }
   const lyRecords = getLyPeriodRecords(model.records, records);
-  const previousRecords = getPreviousPeriodRecords(model.records, records);
-  const data = executiveData(records, lyRecords, previousRecords);
+  const data = executiveData(records, lyRecords);
 
   viewEl.innerHTML = `
     ${objectiveHTML(data.objective)}
@@ -688,8 +681,7 @@ function renderCommercial() {
     return;
   }
   const lyRecords = getLyPeriodRecords(model.records, records);
-  const previousRecords = getPreviousPeriodRecords(model.records, records);
-  const data = commercialData(records, lyRecords, previousRecords);
+  const data = commercialData(records, lyRecords);
 
   viewEl.innerHTML = `
     ${objectiveHTML(data.objective)}
@@ -759,8 +751,8 @@ function renderLogistics() {
     renderNoDataState(DASHBOARDS[2].objective);
     return;
   }
-  const previousRecords = getPreviousPeriodRecords(model.records, records);
-  const data = logisticsData(records, previousRecords);
+  const lyRecords = getLyPeriodRecords(model.records, records);
+  const data = logisticsData(records, lyRecords);
 
   viewEl.innerHTML = `
     ${objectiveHTML(data.objective)}
@@ -843,9 +835,9 @@ function renderHR() {
     renderNoDataState(DASHBOARDS[3].objective);
     return;
   }
-  const previousRecords = getPreviousPeriodRecords(model.records, records);
-  const previousHR = getPreviousPeriodHR(hrRecords);
-  const data = hrData(records, hrRecords, previousRecords, previousHR);
+  const lyRecords = getLyPeriodRecords(model.records, records);
+  const lyHR = getLyPeriodHR(hrRecords);
+  const data = hrData(records, hrRecords, lyRecords, lyHR);
 
   viewEl.innerHTML = `
     ${objectiveHTML(data.objective)}
@@ -857,7 +849,7 @@ function renderHR() {
         <div id="hr-turnover-store" class="chart"></div>
       </article>
       <article class="card span-6">
-        <h4>Ausentismo trend</h4>
+        <h4>Tendencia de Ausentismo</h4>
         <p class="sub">Semanal</p>
         <div id="hr-absent-trend" class="chart"></div>
       </article>
@@ -903,7 +895,7 @@ function renderHR() {
   verticalBar("hr-productivity", data.productivity.map((d) => d.store), data.productivity.map((d) => d.value), { valueType: "currency" });
 }
 
-function executiveData(records, lyRecords, previousRecords = []) {
+function executiveData(records, lyRecords = []) {
   const sales = sum(records, "netSales");
   const lySales = sum(lyRecords, "netSales");
   const margin = sum(records, "grossMargin");
@@ -917,17 +909,15 @@ function executiveData(records, lyRecords, previousRecords = []) {
   const cogs = sum(records, "cogs");
   const doh = (inventory / Math.max(cogs * 52, 1)) * 365;
   const otd = weightedAvg(records, "otd", "orders");
-
-  const previousSales = sum(previousRecords, "netSales");
-  const previousMargin = sum(previousRecords, "grossMargin");
-  const previousMarginPct = pct(previousMargin, previousSales);
-  const previousOrdersTotal = sum(previousRecords, "orders");
-  const previousAov = previousSales / Math.max(previousOrdersTotal, 1);
-  const previousFill = weightedAvg(previousRecords, "fillRate", "orders");
-  const previousInventory = sum(previousRecords, "inventoryValue");
-  const previousCogs = sum(previousRecords, "cogs");
-  const previousDoh = (previousInventory / Math.max(previousCogs * 52, 1)) * 365;
-  const previousOtd = weightedAvg(previousRecords, "otd", "orders");
+  const lyMargin = sum(lyRecords, "grossMargin");
+  const lyMarginPct = pct(lyMargin, lySales);
+  const lyOrdersTotal = sum(lyRecords, "orders");
+  const lyAov = lySales / Math.max(lyOrdersTotal, 1);
+  const lyFill = weightedAvg(lyRecords, "fillRate", "orders");
+  const lyInventory = sum(lyRecords, "inventoryValue");
+  const lyCogs = sum(lyRecords, "cogs");
+  const lyDoh = (lyInventory / Math.max(lyCogs * 52, 1)) * 365;
+  const lyOtd = weightedAvg(lyRecords, "otd", "orders");
 
   const weekMap = aggregateBy(records, "weekLabel", (acc, rec) => {
     acc.sales += rec.netSales;
@@ -1008,13 +998,13 @@ function executiveData(records, lyRecords, previousRecords = []) {
     objective: DASHBOARDS[0].objective,
     scorecards: [
       score("Ventas Netas (MXN)", formatCompactMXN(sales), trendPct(sales, lySales), "vs LY"),
-      score("Margen Bruto % / $", `${formatPct(marginPct)} · ${formatCompactMXN(margin)}`, trendPct(marginPct, previousMarginPct), "vs periodo anterior"),
+      score("Margen Bruto % / $", `${formatPct(marginPct)} · ${formatCompactMXN(margin)}`, trendPct(marginPct, lyMarginPct), "vs LY"),
       score("EBITDA", formatCompactMXN(ebitda), trendPct(ebitda, lySales * 0.145), "vs LY"),
       score("Órdenes e-comm", formatInt(ordersEcom), trendPct(ordersEcom, sum(lyRecords.filter((r) => r.channel === "E-commerce"), "orders")), "vs LY"),
-      score("Ticket Promedio (AOV)", formatMXN(aov), trendPct(aov, previousAov), "vs periodo anterior"),
-      score("Fill Rate", formatPct(fill), trendPct(fill, previousFill), "vs periodo anterior"),
-      score("Días de Inventario (DOH)", `${formatDecimal(doh, 1)} días`, trendLowerBetter(doh, previousDoh), "menor es mejor"),
-      score("OTD", formatPct(otd), trendPct(otd, previousOtd), "vs periodo anterior"),
+      score("Ticket Promedio", formatMXN(aov), trendPct(aov, lyAov), "vs LY"),
+      score("Fill Rate", formatPct(fill), trendPct(fill, lyFill), "vs LY"),
+      score("Días de Inventario", `${formatDecimal(doh, 1)} días`, trendLowerBetter(doh, lyDoh), "vs LY"),
+      score("% Entregas a Tiempo", formatPct(otd), trendPct(otd, lyOtd), "vs LY"),
     ],
     weekLabels,
     weekSales,
@@ -1027,7 +1017,7 @@ function executiveData(records, lyRecords, previousRecords = []) {
   };
 }
 
-function commercialData(records, lyRecords, previousRecords = []) {
+function commercialData(records, lyRecords = []) {
   const sales = sum(records, "netSales");
   const lySales = sum(lyRecords, "netSales");
   const orders = sum(records, "orders");
@@ -1039,16 +1029,15 @@ function commercialData(records, lyRecords, previousRecords = []) {
   const ecom = records.filter((r) => r.channel === "E-commerce");
   const conv = pct(sum(ecom, "orders"), sum(ecom, "sessions"));
   const returns = weightedAvg(records, "returnsPct", "orders");
-  const previousSales = sum(previousRecords, "netSales");
-  const previousOrders = sum(previousRecords, "orders");
-  const previousAov = previousSales / Math.max(previousOrders, 1);
-  const previousUnits = sum(previousRecords, "units");
-  const previousUpt = previousUnits / Math.max(previousOrders, 1);
-  const previousMarginPct = pct(sum(previousRecords, "grossMargin"), previousSales);
-  const previousDiscount = weightedAvg(previousRecords, "discountPct", "netSales");
-  const previousEcom = previousRecords.filter((r) => r.channel === "E-commerce");
-  const previousConv = pct(sum(previousEcom, "orders"), sum(previousEcom, "sessions"));
-  const previousReturns = weightedAvg(previousRecords, "returnsPct", "orders");
+  const lyOrders = sum(lyRecords, "orders");
+  const lyAov = lySales / Math.max(lyOrders, 1);
+  const lyUnits = sum(lyRecords, "units");
+  const lyUpt = lyUnits / Math.max(lyOrders, 1);
+  const lyMarginPct = pct(sum(lyRecords, "grossMargin"), lySales);
+  const lyDiscount = weightedAvg(lyRecords, "discountPct", "netSales");
+  const lyEcom = lyRecords.filter((r) => r.channel === "E-commerce");
+  const lyConv = pct(sum(lyEcom, "orders"), sum(lyEcom, "sessions"));
+  const lyReturns = weightedAvg(lyRecords, "returnsPct", "orders");
 
   const funnel = [
     { name: "Sesiones", value: Math.round(sum(ecom, "sessions")) },
@@ -1216,12 +1205,12 @@ function commercialData(records, lyRecords, previousRecords = []) {
     scorecards: [
       score("Ventas Netas", formatCompactMXN(sales), trendPct(sales, lySales), "vs LY"),
       score("Órdenes / Tickets", formatInt(orders), trendPct(orders, sum(lyRecords, "orders")), "vs LY"),
-      score("AOV", formatMXN(aov), trendPct(aov, previousAov), "vs periodo anterior"),
-      score("UPT", formatDecimal(upt, 2), trendPct(upt, previousUpt), "vs periodo anterior"),
-      score("Margen Bruto", formatPct(marginPct), trendPct(marginPct, previousMarginPct), "vs periodo anterior"),
-      score("Descuento Promedio", formatPct(discount), trendLowerBetter(discount, previousDiscount), "menor es mejor"),
-      score("Conversión e-comm", formatPct(conv), trendPct(conv, previousConv), "vs periodo anterior"),
-      score("Devoluciones", formatPct(returns), trendLowerBetter(returns, previousReturns), "menor es mejor"),
+      score("Ticket Promedio", formatMXN(aov), trendPct(aov, lyAov), "vs LY"),
+      score("Utilidades por Transacción", formatDecimal(upt, 2), trendPct(upt, lyUpt), "vs LY"),
+      score("Margen Bruto", formatPct(marginPct), trendPct(marginPct, lyMarginPct), "vs LY"),
+      score("Descuento Promedio", formatPct(discount), trendLowerBetter(discount, lyDiscount), "vs LY"),
+      score("Conversión e-comm", formatPct(conv), trendPct(conv, lyConv), "vs LY"),
+      score("Devoluciones", formatPct(returns), trendLowerBetter(returns, lyReturns), "vs LY"),
     ],
     funnel,
     categoryTop,
@@ -1235,7 +1224,7 @@ function commercialData(records, lyRecords, previousRecords = []) {
   };
 }
 
-function logisticsData(records, previousRecords = []) {
+function logisticsData(records, lyRecords = []) {
   const orders = sum(records, "orders");
   const otd = weightedAvg(records, "otd", "orders");
   const otif = weightedAvg(records, "otif", "orders");
@@ -1249,18 +1238,18 @@ function logisticsData(records, previousRecords = []) {
   const costPerOrder = logCost / Math.max(orders, 1);
   const backorderPct = pct(backorders, orders);
 
-  const previousOrders = sum(previousRecords, "orders");
-  const previousOtd = weightedAvg(previousRecords, "otd", "orders");
-  const previousOtif = weightedAvg(previousRecords, "otif", "orders");
-  const previousFill = weightedAvg(previousRecords, "fillRate", "orders");
-  const previousBackorders = sum(previousRecords, "backorders");
-  const previousBackorderPct = pct(previousBackorders, previousOrders);
-  const previousStockout = weightedAvg(previousRecords, "stockoutRate", "orders");
-  const previousInventory = sum(previousRecords, "inventoryValue");
-  const previousCogs = sum(previousRecords, "cogs");
-  const previousDoh = (previousInventory / Math.max(previousCogs * 52, 1)) * 365;
-  const previousLogCost = sum(previousRecords, "logisticCost");
-  const previousCostPerOrder = previousLogCost / Math.max(previousOrders, 1);
+  const lyOrders = sum(lyRecords, "orders");
+  const lyOtd = weightedAvg(lyRecords, "otd", "orders");
+  const lyOtif = weightedAvg(lyRecords, "otif", "orders");
+  const lyFill = weightedAvg(lyRecords, "fillRate", "orders");
+  const lyBackorders = sum(lyRecords, "backorders");
+  const lyBackorderPct = pct(lyBackorders, lyOrders);
+  const lyStockout = weightedAvg(lyRecords, "stockoutRate", "orders");
+  const lyInventory = sum(lyRecords, "inventoryValue");
+  const lyCogs = sum(lyRecords, "cogs");
+  const lyDoh = (lyInventory / Math.max(lyCogs * 52, 1)) * 365;
+  const lyLogCost = sum(lyRecords, "logisticCost");
+  const lyCostPerOrder = lyLogCost / Math.max(lyOrders, 1);
 
   const weekMap = aggregateBy(records, "weekLabel", (acc, rec) => {
     acc.otd += rec.otd * rec.orders;
@@ -1368,14 +1357,14 @@ function logisticsData(records, previousRecords = []) {
   return {
     objective: DASHBOARDS[2].objective,
     scorecards: [
-      score("OTD", formatPct(otd), trendPct(otd, previousOtd), "vs periodo anterior"),
-      score("OTIF", formatPct(otif), trendPct(otif, previousOtif), "vs periodo anterior"),
-      score("Fill Rate", formatPct(fill), trendPct(fill, previousFill), "vs periodo anterior"),
-      score("Backorder", `${formatInt(backorders)} (${formatPct(backorderPct)})`, trendLowerBetter(backorderPct, previousBackorderPct), "menor es mejor"),
-      score("Stockout Rate", formatPct(stockout), trendLowerBetter(stockout, previousStockout), "menor es mejor"),
-      score("Inventario Total", formatCompactMXN(inventory), trendPct(inventory, previousInventory), "vs periodo anterior"),
-      score("DOH", `${formatDecimal(doh, 1)} días`, trendLowerBetter(doh, previousDoh), "menor es mejor"),
-      score("Costo logístico/orden", formatMXN(costPerOrder), trendLowerBetter(costPerOrder, previousCostPerOrder), "menor es mejor"),
+      score("% Pedidos a Tiempo", formatPct(otd), trendPct(otd, lyOtd), "vs LY"),
+      score("OTIF (On Time In Full)", formatPct(otif), trendPct(otif, lyOtif), "vs LY"),
+      score("Fill Rate", formatPct(fill), trendPct(fill, lyFill), "vs LY"),
+      score("Backorder", `${formatInt(backorders)} (${formatPct(backorderPct)})`, trendLowerBetter(backorderPct, lyBackorderPct), "vs LY"),
+      score("Stockout Rate", formatPct(stockout), trendLowerBetter(stockout, lyStockout), "vs LY"),
+      score("Inventario Total", formatCompactMXN(inventory), trendPct(inventory, lyInventory), "vs LY"),
+      score("Días de Inventario", `${formatDecimal(doh, 1)} días`, trendLowerBetter(doh, lyDoh), "vs LY"),
+      score("Costo logístico/orden", formatMXN(costPerOrder), trendLowerBetter(costPerOrder, lyCostPerOrder), "vs LY"),
     ],
     weekLabels,
     weekOTD,
@@ -1391,7 +1380,7 @@ function logisticsData(records, previousRecords = []) {
   };
 }
 
-function hrData(records, hrRecords, previousRecords = [], previousHR = []) {
+function hrData(records, hrRecords, lyRecords = [], lyHR = []) {
   const sales = sum(records, "netSales");
   const byWeek = aggregateBy(hrRecords, "weekLabel", (acc, rec) => {
     acc.plan += rec.planHeadcount;
@@ -1420,17 +1409,17 @@ function hrData(records, hrRecords, previousRecords = [], previousHR = []) {
   const trainingPerEmployee = sum(hrRecords, "trainingHours") / Math.max(avg(hrRecords, "actualHeadcount"), 1);
   const incidents = sum(hrRecords, "incidents");
 
-  const previousSales = sum(previousRecords, "netSales");
-  const previousLatestWeek = previousHR.length ? Math.max(...previousHR.map((h) => h.weekIndex)) : -1;
-  const previousLatest = previousLatestWeek >= 0 ? previousHR.filter((h) => h.weekIndex === previousLatestWeek) : [];
-  const previousHeadcount = sum(previousLatest, "actualHeadcount");
-  const previousVacancies = sum(previousLatest, "vacancies");
-  const previousTurnover = weightedAvg(previousHR, "turnoverPct", "actualHeadcount");
-  const previousDaysToFill = weightedAvg(previousHR, "daysToFill", "vacancies");
-  const previousAbsenteeism = weightedAvg(previousHR, "absenteeismPct", "actualHeadcount");
-  const previousOvertimeHours = sum(previousHR, "overtimeHours");
-  const previousLaborCost = sum(previousHR, "laborCost");
-  const previousLaborVsSales = pct(previousLaborCost, previousSales);
+  const lySales = sum(lyRecords, "netSales");
+  const lyLatestWeek = lyHR.length ? Math.max(...lyHR.map((h) => h.weekIndex)) : -1;
+  const lyLatest = lyLatestWeek >= 0 ? lyHR.filter((h) => h.weekIndex === lyLatestWeek) : [];
+  const lyHeadcount = sum(lyLatest, "actualHeadcount");
+  const lyVacancies = sum(lyLatest, "vacancies");
+  const lyTurnover = weightedAvg(lyHR, "turnoverPct", "actualHeadcount");
+  const lyDaysToFill = weightedAvg(lyHR, "daysToFill", "vacancies");
+  const lyAbsenteeism = weightedAvg(lyHR, "absenteeismPct", "actualHeadcount");
+  const lyOvertimeHours = sum(lyHR, "overtimeHours");
+  const lyLaborCost = sum(lyHR, "laborCost");
+  const lyLaborVsSales = pct(lyLaborCost, lySales);
 
   const turnoverByStore = Object.entries(
     aggregateBy(hrRecords, "store", (acc, rec) => {
@@ -1507,14 +1496,14 @@ function hrData(records, hrRecords, previousRecords = [], previousHR = []) {
   return {
     objective: DASHBOARDS[3].objective,
     scorecards: [
-      score("Headcount actual", formatInt(headcount), trendPct(headcount, previousHeadcount), "vs periodo anterior"),
-      score("Vacantes abiertas", formatInt(vacancies), trendLowerBetter(vacancies, previousVacancies), "menor es mejor"),
-      score("Rotación", formatPct(turnover), trendLowerBetter(turnover, previousTurnover), "menor es mejor"),
-      score("Tiempo de cobertura", `${formatDecimal(daysToFill, 1)} días`, trendLowerBetter(daysToFill, previousDaysToFill), "menor es mejor"),
-      score("Ausentismo", formatPct(absenteeism), trendLowerBetter(absenteeism, previousAbsenteeism), "menor es mejor"),
-      score("Horas extra", `${formatInt(overtimeHours)} hrs / ${formatMXN(overtimeCost)}`, trendLowerBetter(overtimeHours, previousOvertimeHours), "menor es mejor"),
-      score("Costo laboral total", formatCompactMXN(laborCost), trendPct(laborCost, previousLaborCost), "vs periodo anterior"),
-      score("Costo laboral / ventas", formatPct(laborVsSales), trendLowerBetter(laborVsSales, previousLaborVsSales), "menor es mejor"),
+      score("Headcount actual", formatInt(headcount), trendPct(headcount, lyHeadcount), "vs LY"),
+      score("Vacantes abiertas", formatInt(vacancies), trendLowerBetter(vacancies, lyVacancies), "vs LY"),
+      score("Rotación", formatPct(turnover), trendLowerBetter(turnover, lyTurnover), "vs LY"),
+      score("Tiempo de cobertura", `${formatDecimal(daysToFill, 1)} días`, trendLowerBetter(daysToFill, lyDaysToFill), "vs LY"),
+      score("Ausentismo", formatPct(absenteeism), trendLowerBetter(absenteeism, lyAbsenteeism), "vs LY"),
+      score("Horas extra", `${formatInt(overtimeHours)} hrs / ${formatMXN(overtimeCost)}`, trendLowerBetter(overtimeHours, lyOvertimeHours), "vs LY"),
+      score("Costo laboral total", formatCompactMXN(laborCost), trendPct(laborCost, lyLaborCost), "vs LY"),
+      score("Costo laboral / ventas", formatPct(laborVsSales), trendLowerBetter(laborVsSales, lyLaborVsSales), "vs LY"),
     ],
     turnoverByStore,
     weekLabels,
@@ -1553,9 +1542,6 @@ function scorecardsHTML(items) {
           <p class="title">${s.title}</p>
           <p class="value">${s.value}</p>
           <p class="meta"><span class="pill ${trendClass(s.trend)}">${formatTrend(s.trend)}</span>${s.note}</p>
-        </div>
-        <div class="score-spark-wrap" aria-hidden="true">
-          ${scoreSparklineSvg(s.spark, s.trend)}
         </div>
       </article>
     `,
@@ -1678,29 +1664,50 @@ function trainingTable(rows) {
 }
 
 function lineChart(id, labels, series, options = {}) {
-  const labelInterval = axisLabelInterval(labels);
   const valueType = options.valueType || "count";
+  const labelInterval = axisLabelInterval(labels);
+  const useVerticalLabels = shouldUseVerticalXAxisLabels(labels);
   mountChart(id, {
     color: series.map((s) => s.color),
     tooltip: { trigger: "axis", valueFormatter: (value) => formatMetricValue(value, valueType, "tooltip") },
-    grid: { left: 52, right: 20, top: 20, bottom: 36, containLabel: true },
-    xAxis: { type: "category", data: labels, axisLabel: { color: "#5f7895", interval: labelInterval } },
+    grid: { left: 52, right: 20, top: 20, bottom: useVerticalLabels ? 86 : 36, containLabel: true },
+    xAxis: {
+      type: "category",
+      data: labels,
+      axisLabel: useVerticalLabels
+        ? { color: "#5f7895", rotate: 90, interval: 0, margin: 8, fontSize: 10, hideOverlap: true }
+        : { color: "#5f7895", interval: labelInterval },
+    },
     yAxis: {
       type: "value",
       axisLabel: { color: "#5f7895", formatter: (v) => formatMetricValue(v, valueType, "axis") },
       splitLine: { lineStyle: { color: "#e4edf6" } },
     },
-    series: series.map((s) => ({ name: s.name, type: "line", smooth: true, data: s.data, lineStyle: { width: 2.4 } })),
+    series: series.map((s, index) => ({
+      name: s.name,
+      type: "line",
+      smooth: true,
+      showSymbol: false,
+      data: series[index].data,
+      lineStyle: { width: 2.4 },
+    })),
   });
 }
 
 function barLineChart(id, labels, bars, line, options = {}) {
-  const labelInterval = axisLabelInterval(labels);
   const valueType = options.valueType || "count";
+  const labelInterval = axisLabelInterval(labels);
+  const useVerticalLabels = shouldUseVerticalXAxisLabels(labels);
   mountChart(id, {
     tooltip: { trigger: "axis", valueFormatter: (value) => formatMetricValue(value, valueType, "tooltip") },
-    grid: { left: 52, right: 16, top: 20, bottom: 36, containLabel: true },
-    xAxis: { type: "category", data: labels, axisLabel: { color: "#5f7895", rotate: 24, interval: labelInterval } },
+    grid: { left: 52, right: 16, top: 20, bottom: useVerticalLabels ? 88 : 36, containLabel: true },
+    xAxis: {
+      type: "category",
+      data: labels,
+      axisLabel: useVerticalLabels
+        ? { color: "#5f7895", rotate: 90, interval: 0, margin: 8, fontSize: 10, hideOverlap: true }
+        : { color: "#5f7895", rotate: 24, interval: labelInterval },
+    },
     yAxis: {
       type: "value",
       axisLabel: { color: "#5f7895", formatter: (v) => formatMetricValue(v, valueType, "axis") },
@@ -1708,7 +1715,7 @@ function barLineChart(id, labels, bars, line, options = {}) {
     },
     series: [
       { type: "bar", name: "Ventas", data: bars, itemStyle: { color: chartColors.primary, borderRadius: 8 } },
-      { type: "line", name: "Meta", data: line, smooth: true, lineStyle: { width: 2.4, color: chartColors.yellow } },
+      { type: "line", name: "Meta", data: line, smooth: true, showSymbol: false, lineStyle: { width: 2.4, color: chartColors.yellow } },
     ],
   });
 }
@@ -1720,14 +1727,22 @@ function horizontalBar(id, labels, values, name, options = {}) {
 
   mountChart(id, {
     tooltip: { trigger: "axis", valueFormatter: (value) => formatMetricValue(value, valueType, "tooltip") },
-    grid: { left: 20, right: 10, top: 18, bottom: 24, containLabel: true },
+    grid: { left: 20, right: 26, top: 18, bottom: 24, containLabel: true },
     xAxis: {
       type: "value",
       ...(options.fitToDataMax && dataMax > 0 ? { max: dataMax } : {}),
       axisLabel: { color: "#5f7895", formatter: (v) => formatMetricValue(v, valueType, "axis") },
       splitLine: { lineStyle: { color: "#e4edf6" } },
     },
-    yAxis: { type: "category", data: labels, axisLabel: { color: "#486683", fontSize: 11 } },
+    yAxis: {
+      type: "category",
+      data: labels,
+      axisLabel: {
+        color: "#486683",
+        fontSize: 11,
+        formatter: (label) => truncateWithEllipsis(label, 28),
+      },
+    },
     series: [{ name, type: "bar", data: values, itemStyle: { color: chartColors.navy, borderRadius: [0, 7, 7, 0] } }],
   });
 }
@@ -1749,13 +1764,20 @@ function verticalBar(id, labels, values, options = {}) {
 }
 
 function stackedBar(id, labels, series, options = {}) {
-  const labelInterval = axisLabelInterval(labels);
   const valueType = options.valueType || "count";
+  const labelInterval = axisLabelInterval(labels);
+  const useVerticalLabels = shouldUseVerticalXAxisLabels(labels);
   mountChart(id, {
     tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, valueFormatter: (value) => formatMetricValue(value, valueType, "tooltip") },
     legend: { top: 2, textStyle: { color: "#56718f", fontSize: 11 } },
-    grid: { left: 16, right: 16, top: 36, bottom: 36, containLabel: true },
-    xAxis: { type: "category", data: labels, axisLabel: { color: "#5f7895", rotate: 20, interval: labelInterval } },
+    grid: { left: 16, right: 16, top: 36, bottom: useVerticalLabels ? 92 : 36, containLabel: true },
+    xAxis: {
+      type: "category",
+      data: labels,
+      axisLabel: useVerticalLabels
+        ? { color: "#5f7895", rotate: 90, interval: 0, margin: 8, fontSize: 10, hideOverlap: true }
+        : { color: "#5f7895", rotate: 20, interval: labelInterval },
+    },
     yAxis: {
       type: "value",
       axisLabel: { color: "#5f7895", formatter: (v) => formatMetricValue(v, valueType, "axis") },
@@ -1766,13 +1788,20 @@ function stackedBar(id, labels, series, options = {}) {
 }
 
 function groupedBar(id, labels, series, options = {}) {
-  const labelInterval = axisLabelInterval(labels);
   const valueType = options.valueType || "count";
+  const labelInterval = axisLabelInterval(labels);
+  const useVerticalLabels = shouldUseVerticalXAxisLabels(labels);
   mountChart(id, {
     tooltip: { trigger: "axis", valueFormatter: (value) => formatMetricValue(value, valueType, "tooltip") },
     legend: { top: 2, textStyle: { color: "#56718f", fontSize: 11 } },
-    grid: { left: 16, right: 16, top: 36, bottom: 36, containLabel: true },
-    xAxis: { type: "category", data: labels, axisLabel: { color: "#5f7895", rotate: 20, interval: labelInterval } },
+    grid: { left: 16, right: 16, top: 36, bottom: useVerticalLabels ? 92 : 36, containLabel: true },
+    xAxis: {
+      type: "category",
+      data: labels,
+      axisLabel: useVerticalLabels
+        ? { color: "#5f7895", rotate: 90, interval: 0, margin: 8, fontSize: 10, hideOverlap: true }
+        : { color: "#5f7895", rotate: 20, interval: labelInterval },
+    },
     yAxis: {
       type: "value",
       axisLabel: { color: "#5f7895", formatter: (v) => formatMetricValue(v, valueType, "axis") },
@@ -1955,18 +1984,79 @@ function ensureMexicoMapRegistered() {
   if (echarts.getMap(MEXICO_MAP_NAME)) return Promise.resolve(true);
   if (mexicoMapPromise) return mexicoMapPromise;
 
-  mexicoMapPromise = fetch(MEXICO_GEOJSON_URL)
-    .then((response) => {
-      if (!response.ok) throw new Error("No se pudo descargar geojson");
-      return response.json();
-    })
-    .then((geojson) => {
-      echarts.registerMap(MEXICO_MAP_NAME, geojson);
-      return true;
+  mexicoMapPromise = tryRegisterMexicoMapFromGeojsonUrls()
+    .then((loaded) => {
+      if (loaded) return true;
+      return tryRegisterMexicoMapFromScriptUrls();
     })
     .catch(() => false);
 
   return mexicoMapPromise;
+}
+
+async function tryRegisterMexicoMapFromGeojsonUrls() {
+  for (const url of MEXICO_GEOJSON_URLS) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) continue;
+      const geojson = await response.json();
+      echarts.registerMap(MEXICO_MAP_NAME, geojson);
+      return true;
+    } catch {
+      // Try next source.
+    }
+  }
+  return false;
+}
+
+async function tryRegisterMexicoMapFromScriptUrls() {
+  for (const url of MEXICO_MAP_SCRIPT_URLS) {
+    try {
+      await loadExternalScript(url);
+      const name = resolveExistingMexicoMapName();
+      if (!name) continue;
+      const mapData = echarts.getMap(name);
+      if (!mapData) continue;
+      echarts.registerMap(MEXICO_MAP_NAME, mapData.geoJSON || mapData);
+      return true;
+    } catch {
+      // Try next source.
+    }
+  }
+  return false;
+}
+
+function resolveExistingMexicoMapName() {
+  for (const name of MEXICO_MAP_CANDIDATE_NAMES) {
+    if (echarts.getMap(name)) return name;
+  }
+  return null;
+}
+
+function loadExternalScript(src) {
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[data-map-src="${src}"]`);
+    if (existing?.dataset.loaded === "true") {
+      resolve();
+      return;
+    }
+    if (existing) {
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener("error", () => reject(new Error("script-error")), { once: true });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = src;
+    script.async = true;
+    script.dataset.mapSrc = src;
+    script.addEventListener("load", () => {
+      script.dataset.loaded = "true";
+      resolve();
+    }, { once: true });
+    script.addEventListener("error", () => reject(new Error("script-error")), { once: true });
+    document.head.appendChild(script);
+  });
 }
 
 function mexicoMapChart(id, points) {
@@ -2136,64 +2226,7 @@ function disposeCharts() {
 }
 
 function score(title, value, trend, note) {
-  return { title, value, trend, note, spark: buildScoreSparkSeries(title, trend) };
-}
-
-function scoreSparklineSvg(points, trend) {
-  const series = Array.isArray(points) && points.length ? points : [48, 49, 50, 51, 52, 53, 54, 55];
-  const coords = series.map((value, index) => ({
-    x: (index / Math.max(series.length - 1, 1)) * 100,
-    y: 100 - clamp(value, 0, 100),
-  }));
-
-  const linePath = coords.map((p, index) => `${index === 0 ? "M" : "L"}${round(p.x, 2)} ${round(p.y, 2)}`).join(" ");
-
-  const tone = trendClass(trend);
-  const colorByTone = {
-    up: { line: "#0D9A6C" },
-    mid: { line: "#B06A00" },
-    down: { line: "#C81E2D" },
-  };
-  const toneColors = colorByTone[tone] || colorByTone.mid;
-  const end = coords.at(-1);
-
-  return `
-    <svg class="score-spark tone-${tone}" viewBox="0 0 100 100" preserveAspectRatio="none">
-      <line x1="0" y1="80" x2="100" y2="80" stroke="rgba(140, 165, 190, 0.28)" stroke-width="1"></line>
-      <path d="${linePath}" fill="none" stroke="${toneColors.line}" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"></path>
-      <circle cx="${round(end.x, 2)}" cy="${round(end.y, 2)}" r="4.6" fill="${toneColors.line}"></circle>
-    </svg>
-  `;
-}
-
-function buildScoreSparkSeries(seedText, trend) {
-  const seed = hashString(seedText);
-  const pointCount = 12;
-  const slope = clamp(trend / 26, -1.2, 1.2);
-  const points = [];
-  let current = 54 - slope * 22;
-
-  for (let i = 0; i < pointCount; i += 1) {
-    const noise = (seededUnit(seed, i) - 0.5) * 8;
-    current += slope * 4 + noise * 0.5;
-    points.push(clamp(round(current, 1), 8, 92));
-  }
-
-  return points;
-}
-
-function hashString(text) {
-  let hash = 0;
-  for (let i = 0; i < text.length; i += 1) {
-    hash = (hash << 5) - hash + text.charCodeAt(i);
-    hash |= 0;
-  }
-  return Math.abs(hash) + 1;
-}
-
-function seededUnit(seed, index) {
-  const x = Math.sin((seed + index * 13.37) * 12.9898) * 43758.5453;
-  return x - Math.floor(x);
+  return { title, value, trend, note };
 }
 
 function trendClass(value) {
@@ -2283,6 +2316,16 @@ function formatMetricValue(value, type = "count", scope = "default", decimalsOve
 function axisLabelInterval(labels, targetTicks = 12) {
   if (!Array.isArray(labels) || labels.length <= targetTicks) return 0;
   return Math.ceil(labels.length / targetTicks) - 1;
+}
+
+function truncateWithEllipsis(text, maxLength = 28) {
+  const value = String(text ?? "");
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, Math.max(1, maxLength - 3)).trimEnd()}...`;
+}
+
+function shouldUseVerticalXAxisLabels(labels, denseThreshold = 24) {
+  return Array.isArray(labels) && labels.length > denseThreshold;
 }
 
 function range(values) {
@@ -2413,7 +2456,7 @@ function unique(arr) {
 
 function generateModel() {
   const rng = createRng(20260218);
-  const weeks = createWeeksInRange("2024-01-01", "2025-12-31");
+  const weeks = createWeeksInRange("2024-01-01", "2026-02-15");
 
   const stores = [
     { name: "Irapuato Centro", city: "Irapuato", state: "Guanajuato", region: "Bajío", factor: 1.16, growth: 0.11, hrRisk: 0.15, income: 1.02 },
