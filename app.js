@@ -1108,7 +1108,17 @@ function renderHR() {
   ], { valueType: "count" });
   funnelChart("hr-vacancy-funnel", data.vacancyFunnel);
   verticalBar("hr-overtime-area", data.overtimeByArea.map((d) => d.area), data.overtimeByArea.map((d) => d.hours), { valueType: "count" });
-  verticalBar("hr-productivity", data.productivity.map((d) => d.store), data.productivity.map((d) => d.value), { valueType: "currency" });
+  verticalBar(
+    "hr-productivity",
+    data.productivity.map((d) => d.store),
+    data.productivity.map((d) => d.value),
+    {
+      valueType: "currency",
+      mobileRotate: 30,
+      mobileBottom: 78,
+      xLabelFormatter: (label) => (isMobileViewport() ? truncateWithEllipsis(label, 14) : label),
+    },
+  );
 }
 
 function executiveData(records, lyRecords = [], hrRecords = [], lyHR = []) {
@@ -2171,6 +2181,7 @@ function barLineChart(id, labels, bars, line, options = {}) {
 function monthlySalesChart(id, labels, sales, salesLY, target) {
   const labelInterval = axisLabelInterval(labels, 10);
   const useVerticalLabels = shouldUseVerticalXAxisLabels(labels, 14);
+  const useMobileAngledLabels = !useVerticalLabels && isMobileViewport();
   const allValues = [...sales, ...salesLY, ...target].map(Number).filter((v) => Number.isFinite(v));
   const seriesMin = allValues.length ? Math.min(...allValues) : 0;
   const seriesMax = allValues.length ? Math.max(...allValues) : 0;
@@ -2214,14 +2225,16 @@ function monthlySalesChart(id, labels, sales, salesLY, target) {
       itemWidth: 14,
       itemHeight: 8,
     },
-    grid: { left: 54, right: 18, top: 40, bottom: useVerticalLabels ? 84 : 42, containLabel: true },
+    grid: { left: 54, right: 18, top: 40, bottom: useVerticalLabels ? 84 : (useMobileAngledLabels ? 62 : 42), containLabel: true },
     xAxis: {
       type: "category",
       data: labels,
       axisLine: { lineStyle: { color: "#c6d7e7" } },
       axisLabel: useVerticalLabels
         ? { color: "#5f7895", rotate: 90, interval: 0, margin: 8, fontSize: 10, hideOverlap: true }
-        : { color: "#5f7895", interval: labelInterval },
+        : (useMobileAngledLabels
+          ? { color: "#5f7895", interval: Math.max(labelInterval, 1), rotate: 35, margin: 10, hideOverlap: true }
+          : { color: "#5f7895", interval: labelInterval }),
     },
     yAxis: {
       type: "value",
@@ -2299,10 +2312,24 @@ function horizontalBar(id, labels, values, name, options = {}) {
 function verticalBar(id, labels, values, options = {}) {
   const labelInterval = axisLabelInterval(labels);
   const valueType = options.valueType || "count";
+  const mobile = isMobileViewport();
+  const rotate = mobile && Number.isFinite(options.mobileRotate) ? options.mobileRotate : 20;
+  const bottom = mobile && Number.isFinite(options.mobileBottom) ? options.mobileBottom : 42;
+  const labelFormatter = typeof options.xLabelFormatter === "function" ? options.xLabelFormatter : undefined;
   mountChart(id, {
     tooltip: { trigger: "axis", valueFormatter: (value) => formatMetricValue(value, valueType, "tooltip") },
-    grid: { left: 16, right: 16, top: 16, bottom: 42, containLabel: true },
-    xAxis: { type: "category", data: labels, axisLabel: { color: "#5f7895", rotate: 20, interval: labelInterval } },
+    grid: { left: 16, right: 16, top: 16, bottom, containLabel: true },
+    xAxis: {
+      type: "category",
+      data: labels,
+      axisLabel: {
+        color: "#5f7895",
+        rotate,
+        interval: labelInterval,
+        ...(labelFormatter ? { formatter: labelFormatter } : {}),
+        ...(mobile ? { hideOverlap: true, margin: 10 } : {}),
+      },
+    },
     yAxis: {
       type: "value",
       axisLabel: { color: "#5f7895", formatter: (v) => formatMetricValue(v, valueType, "axis") },
