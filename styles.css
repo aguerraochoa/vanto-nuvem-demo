@@ -85,18 +85,94 @@ select {
   margin-bottom: 18px;
 }
 
+.brand-head {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.brand-row.is-square-logo {
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.brand-row.is-square-logo .brand-head {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: 12px;
+  padding: 12px;
+  border-radius: 11px;
+  border: 1px solid var(--line);
+  background: var(--surface) !important;
+  background-color: var(--surface) !important;
+  background-image: none !important;
+  box-shadow: 0 6px 14px rgba(16, 38, 63, 0.05);
+  opacity: 1;
+}
+
 .brand-logo-wrap {
   border-radius: 12px;
   overflow: hidden;
   border: 1px solid #0f6ea8;
   background: #006da8;
   box-shadow: 0 8px 20px rgba(0, 109, 168, 0.28);
+  min-height: 92px;
+  max-height: 108px;
+  display: grid;
+  place-items: center;
+  padding: 10px 12px;
+}
+
+.brand-logo-wrap.is-placeholder {
+  border-color: #2a7fb6;
+  background: linear-gradient(135deg, #0c5f92, #2a8fc8);
+}
+
+.brand-logo-wrap.is-square-logo {
+  width: 56px;
+  min-width: 56px;
+  min-height: 56px;
+  max-height: 56px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  place-items: center;
+  grid-column: 1;
+  grid-row: 1;
+  align-self: center;
 }
 
 .brand-logo {
   display: block;
   width: 100%;
-  height: auto;
+  height: 100%;
+  max-height: 84px;
+  object-fit: contain;
+  object-position: center;
+}
+
+.brand-row.is-square-logo .brand-logo {
+  width: 56px;
+  height: 56px;
+  max-height: none;
+  border-radius: 8px;
+}
+
+.brand-row.is-square-logo .kicker {
+  align-self: center;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  margin: 0;
+}
+
+.brand-row.is-square-logo h1 {
+  font-size: 18px;
+  line-height: 1.15;
+  margin: 0;
 }
 
 .kicker {
@@ -895,6 +971,79 @@ select {
   font-size: 11px;
 }
 
+.monthly-sales-table-wrap {
+  margin-top: 8px;
+  border-top: 1px solid #e3edf6;
+  padding-top: 8px;
+}
+
+.monthly-sales-table th,
+.monthly-sales-table td {
+  padding-top: 6px;
+  padding-bottom: 6px;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+
+.monthly-sales-matrix {
+  min-width: max-content;
+}
+
+.monthly-sales-matrix thead th {
+  background: #f8fbff;
+  text-align: center;
+  border-bottom: 1px solid #dfeaf4;
+}
+
+.monthly-sales-matrix .year-total-col {
+  background: #f3f8fd;
+  font-weight: 700;
+}
+
+.monthly-sales-matrix .row-label {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: #f8fbff;
+  text-align: left;
+  min-width: 114px;
+  font-weight: 800;
+  color: #244565;
+}
+
+.monthly-sales-matrix tbody td {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.monthly-sales-matrix tbody tr.is-ventas .row-label {
+  color: #005888;
+}
+
+.monthly-sales-matrix tbody tr.is-aa .row-label {
+  color: #6b7f95;
+}
+
+.monthly-sales-matrix tbody tr.is-objetivo .row-label {
+  color: #9a6a00;
+}
+
+.monthly-sales-matrix tbody tr.is-pct {
+  background: #fbfdff;
+}
+
+.monthly-sales-matrix tbody tr.is-pct .row-label {
+  color: #355b80;
+}
+
+.monthly-sales-matrix tbody tr.is-pct-aa {
+  background: #f8fbff;
+}
+
+.monthly-sales-matrix tbody tr.is-pct-aa .row-label {
+  color: #2f5b83;
+}
+
 .kpi-ok { color: var(--green); font-weight: 700; }
 .kpi-mid { color: var(--amber); font-weight: 700; }
 .kpi-bad { color: var(--red); font-weight: 700; }
@@ -907,6 +1056,18 @@ select {
   .span-5,
   .span-4,
   .span-3 { grid-column: span 12; }
+}
+
+@media (max-width: 768px) {
+  .monthly-sales-matrix .row-label {
+    min-width: 94px;
+  }
+
+  .monthly-sales-table th,
+  .monthly-sales-table td {
+    padding-left: 4px;
+    padding-right: 4px;
+  }
 }
 
 @media (max-width: 1024px) {

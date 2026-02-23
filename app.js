@@ -25,6 +25,33 @@ const DASHBOARDS = [
   },
 ];
 
+const CLIENT_BRANDS = {
+  default: {
+    slug: "default",
+    companyName: "Vanto Nuvem",
+    sidebarTitle: "Centro de Control",
+    topbarKicker: "Inteligencia de Negocio",
+    logo: {
+      kind: "image",
+      src: "/logos/vanto-nuvem.png",
+      alt: "Vanto Nuvem",
+      shape: "square",
+    },
+  },
+  ryse: {
+    slug: "ryse",
+    companyName: "RYSE",
+    sidebarTitle: "Centro de Control",
+    topbarKicker: "Inteligencia de Negocio",
+    logo: {
+      kind: "image",
+      src: "/logos/ryse.avif",
+      alt: "RYSE",
+      shape: "wide",
+    },
+  },
+};
+
 const defaultFilters = {
   canal: "Todos",
   region: "Todas",
@@ -45,20 +72,23 @@ const defaultFilters = {
 };
 
 const KPI_HELP_TEXT = {
-  "Motor Comercial":
+  Comercial:
     "Tarjeta compuesta: Facturación = suma de ventas netas; Órdenes e-comm = suma de órdenes del canal e-commerce; Ticket Promedio = Facturación / órdenes totales.",
   Facturación: "Suma de ventas netas.",
   "Órdenes e-comm": "Suma de órdenes del canal e-commerce.",
   "Ticket Promedio": "Facturación total dividida entre órdenes totales.",
   "Margen Bruto % · $":
     "Margen bruto $ = Facturación - costo de venta (COGS). Margen bruto % = Margen bruto $ / Facturación.",
+  Finanzas:
+    "Tarjeta compuesta de resultado financiero: Facturación = suma de ventas netas; Cumplimiento a Objetivo = Facturación / presupuesto de ventas; EBITDA % · $ = EBITDA y su porcentaje sobre facturación.",
+  "Cumplimiento a Objetivo": "Porcentaje de cumplimiento contra presupuesto de ventas: Facturación / presupuesto.",
   "Eficiencia Comercial":
-    "Tarjeta compuesta: Margen Bruto % · $ = (Facturación - COGS) y su porcentaje; Conversión e-comm = órdenes e-commerce / sesiones e-commerce; Descuento Promedio = promedio ponderado por facturación.",
-  "Servicio Logístico":
+    "Tarjeta compuesta: Conversión e-comm = órdenes e-commerce / sesiones e-commerce; Descuento Promedio = promedio ponderado por facturación; Devoluciones = promedio ponderado por órdenes del porcentaje de devoluciones.",
+  Logística:
     "Tarjeta compuesta: % Pedidos a Tiempo = promedio ponderado por órdenes de OTD; OTIF = promedio ponderado por órdenes de entregas a tiempo y completas; Fill Rate = promedio ponderado por órdenes del surtido.",
-  "Salud de Inventario":
+  Inventario:
     "Tarjeta compuesta: Días de Inventario = (Inventario / costo de venta anualizado) x 365; Stockout Rate = promedio ponderado por órdenes de quiebre; Backorder % = unidades en backorder / órdenes.",
-  "Salud de Talento":
+  "Recursos Humanos":
     "Tarjeta compuesta: Ausentismo y Rotación son promedios ponderados por headcount; Costo laboral / ventas = costo laboral total / facturación.",
   "EBITDA % · $": "EBITDA $ = utilidad operativa antes de intereses, impuestos, depreciación y amortización. EBITDA % = EBITDA $ / Facturación.",
   EBITDA: "EBITDA $ = utilidad operativa antes de intereses, impuestos, depreciación y amortización. EBITDA % = EBITDA $ / Facturación.",
@@ -132,9 +162,16 @@ const MEXICO_MAP_SCRIPT_URLS = [
 const MEXICO_MAP_CANDIDATE_NAMES = ["Mexico", "mexico", "MX", "mx", "México", "MEXICO"];
 let mexicoMapPromise = null;
 let dateRangePicker = null;
+const activeClientBrand = resolveClientBrand(window.location.pathname);
 
 const menuEl = document.getElementById("menu");
 const titleEl = document.getElementById("page-title");
+const brandRowEl = document.querySelector(".brand-row");
+const sidebarBrandKickerEl = document.getElementById("sidebar-brand-kicker");
+const sidebarBrandTitleEl = document.getElementById("sidebar-brand-title");
+const topbarBrandKickerEl = document.getElementById("topbar-brand-kicker");
+const brandLogoWrapEl = document.getElementById("brand-logo-wrap");
+const brandLogoEl = document.getElementById("brand-logo");
 const filterRowEl = document.getElementById("filter-row");
 const viewEl = document.getElementById("view");
 const topDateRangeInput = document.getElementById("top-date-range");
@@ -154,6 +191,7 @@ if (!window.echarts) {
 }
 
 function init() {
+  applyClientBranding(activeClientBrand);
   initToolbar();
   initSidebar();
   initKpiTooltipInteractions();
@@ -173,6 +211,78 @@ function init() {
       if (!query.matches) closeSidebar();
     });
   }
+}
+
+function resolveClientBrand(pathname) {
+  const rawSegment = String(pathname || "/")
+    .split("/")
+    .filter(Boolean)[0] || "default";
+  const slug = rawSegment.toLowerCase();
+  return CLIENT_BRANDS[slug] || CLIENT_BRANDS.default;
+}
+
+function applyClientBranding(client) {
+  if (!client) return;
+  const brand = client.logo || {};
+
+  if (sidebarBrandKickerEl) sidebarBrandKickerEl.textContent = client.companyName;
+  if (sidebarBrandTitleEl) sidebarBrandTitleEl.textContent = client.sidebarTitle || "Centro de Control";
+  if (topbarBrandKickerEl) topbarBrandKickerEl.textContent = client.topbarKicker || client.companyName;
+  if (document?.title) document.title = `Demo BI | ${client.companyName}`;
+
+  if (brandLogoWrapEl) {
+    brandLogoWrapEl.classList.toggle("is-placeholder", brand.kind !== "image");
+    brandLogoWrapEl.classList.toggle("is-square-logo", brand.shape === "square");
+  }
+  if (brandRowEl) {
+    brandRowEl.classList.toggle("is-square-logo", brand.shape === "square");
+  }
+
+  if (!brandLogoEl) return;
+
+  if (brand.kind === "image" && brand.src) {
+    brandLogoEl.src = brand.src;
+    brandLogoEl.alt = brand.alt || client.companyName;
+  } else {
+    brandLogoEl.src = buildPlaceholderLogoDataUri({
+      companyName: client.companyName,
+      letters: brand.letters || initialsFromName(client.companyName),
+      bg: brand.bg || "#0F5F93",
+      fg: brand.fg || "#FFFFFF",
+      accent: brand.accent || "#8FD1FF",
+    });
+    brandLogoEl.alt = `${client.companyName} (Demo)`;
+  }
+}
+
+function initialsFromName(name) {
+  const parts = String(name || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (!parts.length) return "DE";
+  return parts.slice(0, 2).map((p) => p[0]?.toUpperCase() || "").join("") || "DE";
+}
+
+function buildPlaceholderLogoDataUri({ companyName, letters, bg, fg, accent }) {
+  const label = escapeHtml(companyName || "Demo");
+  const mark = escapeHtml((letters || "DE").slice(0, 3));
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="600" height="180" viewBox="0 0 600 180">
+      <defs>
+        <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0%" stop-color="${bg}"/>
+          <stop offset="100%" stop-color="${accent}"/>
+        </linearGradient>
+      </defs>
+      <rect x="0" y="0" width="600" height="180" rx="18" fill="url(#g)"/>
+      <rect x="22" y="22" width="136" height="136" rx="20" fill="rgba(255,255,255,0.12)" stroke="rgba(255,255,255,0.28)"/>
+      <text x="90" y="105" text-anchor="middle" fill="${fg}" font-family="Manrope, Arial, sans-serif" font-size="56" font-weight="800">${mark}</text>
+      <text x="182" y="82" fill="${fg}" font-family="Manrope, Arial, sans-serif" font-size="22" opacity="0.9" letter-spacing="2">DEMO CLIENTE</text>
+      <text x="182" y="118" fill="${fg}" font-family="Sora, Arial, sans-serif" font-size="38" font-weight="700">${label}</text>
+    </svg>
+  `.trim();
+  return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
 }
 
 function initKpiTooltipInteractions() {
@@ -335,10 +445,7 @@ function getDatasetDateBounds(weeks) {
 }
 
 function getInitialDateRange(bounds) {
-  const to = bounds?.max || datasetDateBounds.max;
-  const toDate = isoToDate(to);
-  const from = dateToIso(new Date(Date.UTC(toDate.getUTCFullYear(), toDate.getUTCMonth(), 1)));
-  return clampRangeToDataset({ from, to });
+  return clampRangeToDataset({ from: "2025-01-01", to: "2025-12-31" });
 }
 
 function isoToDate(iso) {
@@ -729,18 +836,8 @@ function renderExecutive() {
       <article class="card span-12">
         <h4>Ventas por mes</h4>
         <p class="sub">Actual vs AA vs objetivo</p>
-        <div id="exec-monthly-sales" class="chart"></div>
-      </article>
-
-      <article class="card span-8">
-        <h4>Tendencia de Facturación</h4>
-        <p class="sub">${getDateScopeLabel()}</p>
-        <div id="exec-sales-trend" class="chart"></div>
-      </article>
-      <article class="card span-4">
-        <h4>Ventas vs Meta</h4>
-        <p class="sub">Actual vs presupuesto</p>
-        <div id="exec-vs-target" class="chart"></div>
+        <div id="exec-monthly-sales" class="chart tall"></div>
+        ${monthlySalesTable(data.monthLabels, data.monthSales, data.monthSalesLY, data.monthTarget)}
       </article>
 
       <article class="card span-6">
@@ -780,15 +877,6 @@ function renderExecutive() {
     data.monthTarget,
   );
 
-  lineChart(
-    "exec-sales-trend",
-    data.weekLabels,
-    [{ name: "Ventas", data: data.weekSales, color: palette[0] }],
-    { valueType: "currency" },
-  );
-
-  barLineChart("exec-vs-target", data.weekLabels, data.weekSales, data.weekTarget, { valueType: "currency" });
-
   horizontalBar(
     "exec-margin-category",
     data.marginByCategory.map((d) => d.name),
@@ -800,7 +888,7 @@ function renderExecutive() {
   stackedBar("exec-mix-channel", data.weekLabels, [
     { name: "Tienda", data: data.mixStore, color: chartColors.navy },
     { name: "E-commerce", data: data.mixEcom, color: chartColors.primary },
-  ], { valueType: "currency" });
+  ], { valueType: "currency", fitToDataRange: true });
 
   renderMexicoMap("exec-map", data.stateMap);
 }
@@ -937,7 +1025,7 @@ function renderLogistics() {
     { name: "OTD", data: data.weekOTD, color: palette[0] },
     { name: "OTIF", data: data.weekOTIF, color: palette[1] },
     { name: "Meta SLA", data: data.weekSLA, color: chartColors.yellow },
-  ], { valueType: "percent" });
+  ], { valueType: "percent", axisMin: 90, axisMax: 100, axisInterval: 2 });
 
   verticalBar("log-delays-carrier", data.carrierDelay.map((d) => d.name), data.carrierDelay.map((d) => d.value), { valueType: "count" });
   verticalBar("log-lead-hist", data.leadBins.map((d) => d.bin), data.leadBins.map((d) => d.count), { valueType: "count" });
@@ -1013,7 +1101,7 @@ function renderHR() {
   `;
 
   horizontalBar("hr-turnover-store", data.turnoverByStore.map((d) => d.name), data.turnoverByStore.map((d) => d.value), "% rotación", { valueType: "percent" });
-  lineChart("hr-absent-trend", data.weekLabels, [{ name: "Ausentismo", data: data.absentTrend, color: palette[0] }], { valueType: "percent" });
+  lineChart("hr-absent-trend", data.weekLabels, [{ name: "Ausentismo", data: data.absentTrend, color: palette[0] }], { valueType: "percent", smooth: false });
   groupedBar("hr-plan-vs-current", data.planVsCurrent.map((d) => d.week), [
     { name: "Plan", data: data.planVsCurrent.map((d) => d.plan), color: chartColors.neutral },
     { name: "Actual", data: data.planVsCurrent.map((d) => d.current), color: chartColors.navy },
@@ -1030,6 +1118,10 @@ function executiveData(records, lyRecords = [], hrRecords = [], lyHR = []) {
   const marginPct = pct(margin, sales);
   const ebitda = sales * 0.145;
   const ebitdaPct = pct(ebitda, sales);
+  const budgetTotal = sum(records, "budgetSales");
+  const lyBudgetTotal = sum(lyRecords, "budgetSales");
+  const budgetAttainment = pct(sales, budgetTotal);
+  const lyBudgetAttainment = pct(lySales, lyBudgetTotal);
   const ordersEcom = sum(records.filter((r) => r.channel === "E-commerce"), "orders");
   const ticketsStore = sum(records.filter((r) => r.channel === "Tienda"), "orders");
   const aov = sales / Math.max(ordersEcom + ticketsStore, 1);
@@ -1049,6 +1141,8 @@ function executiveData(records, lyRecords = [], hrRecords = [], lyHR = []) {
   const lyEcom = lyRecords.filter((r) => r.channel === "E-commerce");
   const conv = pct(sum(ecom, "orders"), sum(ecom, "sessions"));
   const lyConv = pct(sum(lyEcom, "orders"), sum(lyEcom, "sessions"));
+  const returns = weightedAvg(records, "returnsPct", "orders");
+  const lyReturns = weightedAvg(lyRecords, "returnsPct", "orders");
   const lyInventory = sum(lyRecords, "inventoryValue");
   const lyCogs = sum(lyRecords, "cogs");
   const lyDoh = (lyInventory / Math.max(lyCogs * 52, 1)) * 365;
@@ -1166,32 +1260,36 @@ function executiveData(records, lyRecords = [], hrRecords = [], lyHR = []) {
   return {
     objective: DASHBOARDS[0].objective,
     scorecards: [
-      scoreBundle("Motor Comercial", "Facturación = Órdenes e-comm x Ticket Promedio", [
+      scoreBundle("Comercial", "Facturación = Órdenes e-comm x Ticket Promedio", [
         { label: "Facturación", value: formatCompactMXN(sales), trend: trendPct(sales, lySales), note: "vs AA" },
         { label: "Órdenes e-comm", value: formatInt(ordersEcom), trend: trendPct(ordersEcom, lyOrdersEcom), note: "vs AA" },
         { label: "Ticket Promedio", value: formatMXN(aov), trend: trendPct(aov, lyAov), note: "vs AA" },
       ]),
-      scoreBundle("Eficiencia Comercial", "Rentabilidad, conversion y descuento", [
-        { label: "Margen Bruto % · $", value: `${formatPct(marginPct)} · ${formatCompactMXN(margin)}`, trend: trendPct(marginPct, lyMarginPct), note: "vs AA" },
+      scoreBundle("Eficiencia Comercial", "Conversión, descuento y devoluciones", [
         { label: "Conversión e-comm", value: formatPct(conv), trend: trendPct(conv, lyConv), note: "vs AA" },
         { label: "Descuento Promedio", value: formatPct(discount), trend: trendLowerBetter(discount, lyDiscount), note: "vs AA" },
+        { label: "Devoluciones", value: formatPct(returns), trend: trendLowerBetter(returns, lyReturns), note: "vs AA" },
       ]),
-      scoreBundle("Servicio Logístico", "Entrega a tiempo y surtido", [
+      scoreBundle("Finanzas", "Ingresos y rentabilidad", [
+        { label: "Facturación", value: formatCompactMXN(sales), trend: trendPct(sales, lySales), note: "vs AA" },
+        { label: "Margen Bruto % · $", value: `${formatPct(marginPct)} · ${formatCompactMXN(margin)}`, trend: trendPct(marginPct, lyMarginPct), note: "vs AA" },
+        { label: "EBITDA % · $", value: `${formatPct(ebitdaPct)} · ${formatCompactMXN(ebitda)}`, trend: trendPct(ebitda, lySales * 0.145), note: "vs AA" },
+      ]),
+      scoreBundle("Logística", "Entrega a tiempo y surtido", [
         { label: "% Pedidos a Tiempo", value: formatPct(otd), trend: trendPct(otd, lyOtd), note: "vs AA" },
         { label: "OTIF", value: formatPct(otif), trend: trendPct(otif, lyOtif), note: "vs AA" },
         { label: "Fill Rate", value: formatPct(fill), trend: trendPct(fill, lyFill), note: "vs AA" },
       ]),
-      scoreBundle("Salud de Inventario", "Cobertura y riesgo de quiebre", [
+      scoreBundle("Inventario", "Cobertura y riesgo de quiebre", [
         { label: "Días de Inventario", value: `${formatDecimal(doh, 1)} días`, trend: trendLowerBetter(doh, lyDoh), note: "vs AA" },
         { label: "Stockout Rate", value: formatPct(stockout), trend: trendLowerBetter(stockout, lyStockout), note: "vs AA" },
         { label: "Backorder %", value: formatPct(backorderPct), trend: trendLowerBetter(backorderPct, lyBackorderPct), note: "vs AA" },
       ]),
-      scoreBundle("Salud de Talento", "Estabilidad y costo laboral", [
+      scoreBundle("Recursos Humanos", "Estabilidad y costo laboral", [
         { label: "Ausentismo", value: formatPct(absenteeism), trend: trendLowerBetter(absenteeism, lyAbsenteeism), note: "vs AA" },
         { label: "Rotación", value: formatPct(turnover), trend: trendLowerBetter(turnover, lyTurnover), note: "vs AA" },
         { label: "Costo laboral / ventas", value: formatPct(laborVsSales), trend: trendLowerBetter(laborVsSales, lyLaborVsSales), note: "vs AA" },
       ]),
-      score("EBITDA % · $", `${formatPct(ebitdaPct)} · ${formatCompactMXN(ebitda)}`, trendPct(ebitda, lySales * 0.145), "vs AA"),
     ],
     monthLabels,
     monthSales,
@@ -1890,14 +1988,129 @@ function trainingTable(rows) {
   `;
 }
 
+function monthlySalesTable(labels, sales, salesLY, target) {
+  const months = (labels || []).map((label, index) => {
+    const actual = Number(sales?.[index]) || 0;
+    const aa = Number(salesLY?.[index]) || 0;
+    const goal = Number(target?.[index]) || 0;
+    const vsGoal = goal > 0 ? (actual / goal) * 100 : 0;
+    const vsAA = trendPct(actual, aa);
+    return { label, actual, aa, goal, vsGoal, vsAA };
+  });
+
+  const totalActual = months.reduce((acc, m) => acc + m.actual, 0);
+  const totalAA = months.reduce((acc, m) => acc + m.aa, 0);
+  const totalGoal = months.reduce((acc, m) => acc + m.goal, 0);
+  const totalVsGoal = totalGoal > 0 ? (totalActual / totalGoal) * 100 : 0;
+  const totalVsAA = trendPct(totalActual, totalAA);
+  const yearLabelMatch = String(months[0]?.label || "").match(/\b(20\d{2})\b/);
+  const yearLabel = yearLabelMatch ? `Resultado ${yearLabelMatch[1]}` : "Resultado anual";
+
+  const rowDefs = [
+    {
+      label: "Ventas",
+      className: "is-ventas",
+      cells: months.map((m) => formatCompactMXN(m.actual)),
+      totalCell: formatCompactMXN(totalActual),
+    },
+    {
+      label: "Ventas AA",
+      className: "is-aa",
+      cells: months.map((m) => formatCompactMXN(m.aa)),
+      totalCell: formatCompactMXN(totalAA),
+    },
+    {
+      label: "Objetivo",
+      className: "is-objetivo",
+      cells: months.map((m) => formatCompactMXN(m.goal)),
+      totalCell: formatCompactMXN(totalGoal),
+    },
+    {
+      label: "% vs Obj.",
+      className: "is-pct",
+      cells: months.map((m) => formatPct(m.vsGoal)),
+      totalCell: formatPct(totalVsGoal),
+    },
+    {
+      label: "% vs AA",
+      className: "is-pct-aa",
+      cells: months.map((m) => formatTrend(m.vsAA)),
+      totalCell: formatTrend(totalVsAA),
+    },
+  ];
+
+  return `
+    <div class="table-wrap monthly-sales-table-wrap">
+      <table class="table monthly-sales-table monthly-sales-matrix">
+        <thead>
+          <tr>
+            <th class="row-label">Métrica</th>
+            ${months.map((m) => `<th>${m.label}</th>`).join("")}
+            <th class="year-total-col">${yearLabel}</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowDefs
+            .map(
+              (row) =>
+                `<tr class="${row.className}"><th class="row-label">${row.label}</th>${row.cells.map((cell) => `<td>${cell}</td>`).join("")}<td class="year-total-col">${row.totalCell || ""}</td></tr>`,
+            )
+            .join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function computeFittedValueAxisBounds(values, options = {}) {
+  const numericValues = (values || []).map(Number).filter((v) => Number.isFinite(v));
+  if (!numericValues.length) return null;
+
+  const minValue = Math.min(...numericValues);
+  const maxValue = Math.max(...numericValues);
+  const span = Math.max(maxValue - minValue, 1);
+  const bottomPadPct = Number.isFinite(options.bottomPadPct) ? options.bottomPadPct : 0.18;
+  const topPadPct = Number.isFinite(options.topPadPct) ? options.topPadPct : 0.08;
+  const zeroFloor = options.zeroFloor !== false;
+
+  const minRaw = (zeroFloor ? Math.max(0, minValue - span * bottomPadPct) : (minValue - span * bottomPadPct));
+  const maxRaw = maxValue + span * topPadPct;
+
+  const niceFloor = (value) => {
+    if (!Number.isFinite(value)) return 0;
+    if (Math.abs(value) < 1e-9) return 0;
+    const abs = Math.abs(value);
+    const magnitude = 10 ** Math.floor(Math.log10(abs));
+    const step = magnitude / 2;
+    const rounded = Math.floor(value / step) * step;
+    return zeroFloor ? Math.max(0, rounded) : rounded;
+  };
+
+  const niceCeil = (value) => {
+    if (!Number.isFinite(value)) return 1;
+    if (Math.abs(value) < 1e-9) return 1;
+    const abs = Math.abs(value);
+    const magnitude = 10 ** Math.floor(Math.log10(abs));
+    const step = magnitude / 2;
+    return Math.ceil(value / step) * step;
+  };
+
+  const min = niceFloor(minRaw);
+  const max = Math.max(niceCeil(maxRaw), min + 1);
+  return { min, max };
+}
+
 function lineChart(id, labels, series, options = {}) {
   const valueType = options.valueType || "count";
   const labelInterval = axisLabelInterval(labels);
   const useVerticalLabels = shouldUseVerticalXAxisLabels(labels);
+  const fittedBounds = options.fitToDataRange
+    ? computeFittedValueAxisBounds(series.flatMap((s) => s.data || []), { zeroFloor: options.zeroFloor !== false })
+    : null;
   mountChart(id, {
     color: series.map((s) => s.color),
     tooltip: { trigger: "axis", valueFormatter: (value) => formatMetricValue(value, valueType, "tooltip") },
-    grid: { left: 52, right: 20, top: 20, bottom: useVerticalLabels ? 86 : 36, containLabel: true },
+    grid: { left: 52, right: 20, top: 20, bottom: 36, containLabel: true },
     xAxis: {
       type: "category",
       data: labels,
@@ -1907,13 +2120,17 @@ function lineChart(id, labels, series, options = {}) {
     },
     yAxis: {
       type: "value",
+      ...(Number.isFinite(options.axisMin) ? { min: options.axisMin } : {}),
+      ...(Number.isFinite(options.axisMax) ? { max: options.axisMax } : {}),
+      ...(Number.isFinite(options.axisInterval) ? { interval: options.axisInterval } : {}),
+      ...(fittedBounds ? { min: fittedBounds.min, max: fittedBounds.max, scale: true } : {}),
       axisLabel: { color: "#5f7895", formatter: (v) => formatMetricValue(v, valueType, "axis") },
       splitLine: { lineStyle: { color: "#e4edf6" } },
     },
     series: series.map((s, index) => ({
       name: s.name,
       type: "line",
-      smooth: true,
+      smooth: s.smooth ?? options.smooth ?? true,
       showSymbol: false,
       data: series[index].data,
       lineStyle: { width: 2.4 },
@@ -1925,9 +2142,12 @@ function barLineChart(id, labels, bars, line, options = {}) {
   const valueType = options.valueType || "count";
   const labelInterval = axisLabelInterval(labels);
   const useVerticalLabels = shouldUseVerticalXAxisLabels(labels);
+  const fittedBounds = options.fitToDataRange
+    ? computeFittedValueAxisBounds([...(bars || []), ...(line || [])], { zeroFloor: options.zeroFloor !== false })
+    : null;
   mountChart(id, {
     tooltip: { trigger: "axis", valueFormatter: (value) => formatMetricValue(value, valueType, "tooltip") },
-    grid: { left: 52, right: 16, top: 20, bottom: useVerticalLabels ? 88 : 36, containLabel: true },
+    grid: { left: 52, right: 16, top: 20, bottom: 36, containLabel: true },
     xAxis: {
       type: "category",
       data: labels,
@@ -1937,6 +2157,7 @@ function barLineChart(id, labels, bars, line, options = {}) {
     },
     yAxis: {
       type: "value",
+      ...(fittedBounds ? { min: fittedBounds.min, max: fittedBounds.max, scale: true } : {}),
       axisLabel: { color: "#5f7895", formatter: (v) => formatMetricValue(v, valueType, "axis") },
       splitLine: { lineStyle: { color: "#e4edf6" } },
     },
@@ -1950,6 +2171,29 @@ function barLineChart(id, labels, bars, line, options = {}) {
 function monthlySalesChart(id, labels, sales, salesLY, target) {
   const labelInterval = axisLabelInterval(labels, 10);
   const useVerticalLabels = shouldUseVerticalXAxisLabels(labels, 14);
+  const allValues = [...sales, ...salesLY, ...target].map(Number).filter((v) => Number.isFinite(v));
+  const seriesMin = allValues.length ? Math.min(...allValues) : 0;
+  const seriesMax = allValues.length ? Math.max(...allValues) : 0;
+  const rawSpan = Math.max(seriesMax - seriesMin, 1);
+  const bottomBuffer = Math.max(seriesMin * 0.22, rawSpan * 0.18, 1);
+  const topBuffer = Math.max(seriesMax * 0.04, rawSpan * 0.08, 1);
+  const axisMinRaw = Math.max(0, seriesMin - bottomBuffer);
+  const axisMaxRaw = seriesMax + topBuffer;
+
+  const niceFloor = (value) => {
+    if (!Number.isFinite(value) || value <= 0) return 0;
+    const magnitude = 10 ** Math.floor(Math.log10(value));
+    const step = magnitude / 2;
+    return Math.floor(value / step) * step;
+  };
+  const niceCeil = (value) => {
+    if (!Number.isFinite(value) || value <= 0) return 1;
+    const magnitude = 10 ** Math.floor(Math.log10(value));
+    const step = magnitude / 2;
+    return Math.ceil(value / step) * step;
+  };
+  const axisMin = niceFloor(axisMinRaw);
+  const axisMax = Math.max(niceCeil(axisMaxRaw), axisMin + 1);
 
   mountChart(id, {
     tooltip: {
@@ -1981,6 +2225,9 @@ function monthlySalesChart(id, labels, sales, salesLY, target) {
     },
     yAxis: {
       type: "value",
+      min: axisMin,
+      max: axisMax,
+      scale: true,
       axisLabel: { color: "#5f7895", formatter: (v) => formatMetricValue(v, "currency", "axis") },
       splitLine: { lineStyle: { color: "#e4edf6" } },
     },
@@ -2002,21 +2249,21 @@ function monthlySalesChart(id, labels, sales, salesLY, target) {
         name: "Ventas AA",
         type: "line",
         data: salesLY,
-        smooth: true,
+        smooth: false,
         symbol: "circle",
         symbolSize: 7,
-        lineStyle: { width: 2.4, type: "dashed", color: "#6b7f95" },
-        itemStyle: { color: "#6b7f95" },
+        lineStyle: { width: 2.4, type: "dashed", color: chartColors.red },
+        itemStyle: { color: chartColors.red },
       },
       {
         name: "Objetivo",
         type: "line",
         data: target,
-        smooth: true,
+        smooth: false,
         symbol: "circle",
         symbolSize: 6,
-        lineStyle: { width: 2.6, color: chartColors.yellow },
-        itemStyle: { color: chartColors.yellow },
+        lineStyle: { width: 2.6, color: chartColors.green },
+        itemStyle: { color: chartColors.green },
       },
     ],
   });
@@ -2069,10 +2316,16 @@ function stackedBar(id, labels, series, options = {}) {
   const valueType = options.valueType || "count";
   const labelInterval = axisLabelInterval(labels);
   const useVerticalLabels = shouldUseVerticalXAxisLabels(labels);
+  const stackedTotals = (labels || []).map((_, index) =>
+    (series || []).reduce((acc, s) => acc + (Number(s?.data?.[index]) || 0), 0),
+  );
+  const fittedBounds = options.fitToDataRange
+    ? computeFittedValueAxisBounds(stackedTotals, { zeroFloor: options.zeroFloor !== false })
+    : null;
   mountChart(id, {
     tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, valueFormatter: (value) => formatMetricValue(value, valueType, "tooltip") },
     legend: { top: 2, textStyle: { color: "#56718f", fontSize: 11 } },
-    grid: { left: 16, right: 16, top: 36, bottom: useVerticalLabels ? 92 : 36, containLabel: true },
+    grid: { left: 16, right: 16, top: 36, bottom: 36, containLabel: true },
     xAxis: {
       type: "category",
       data: labels,
@@ -2082,6 +2335,7 @@ function stackedBar(id, labels, series, options = {}) {
     },
     yAxis: {
       type: "value",
+      ...(fittedBounds ? { min: fittedBounds.min, max: fittedBounds.max, scale: true } : {}),
       axisLabel: { color: "#5f7895", formatter: (v) => formatMetricValue(v, valueType, "axis") },
       splitLine: { lineStyle: { color: "#e4edf6" } },
     },
@@ -2096,7 +2350,7 @@ function groupedBar(id, labels, series, options = {}) {
   mountChart(id, {
     tooltip: { trigger: "axis", valueFormatter: (value) => formatMetricValue(value, valueType, "tooltip") },
     legend: { top: 2, textStyle: { color: "#56718f", fontSize: 11 } },
-    grid: { left: 16, right: 16, top: 36, bottom: useVerticalLabels ? 92 : 36, containLabel: true },
+    grid: { left: 16, right: 16, top: 36, bottom: 36, containLabel: true },
     xAxis: {
       type: "category",
       data: labels,
@@ -2499,6 +2753,7 @@ function equalizeGridRowHeights() {
     const cards = Array.from(grid.querySelectorAll(":scope > .card"));
     cards.forEach((card) => {
       card.style.minHeight = "";
+      card.style.height = "";
     });
 
     if (window.innerWidth <= 1300) return;
@@ -2514,6 +2769,7 @@ function equalizeGridRowHeights() {
       const maxHeight = Math.max(...rowCards.map((card) => card.offsetHeight));
       rowCards.forEach((card) => {
         card.style.minHeight = `${maxHeight}px`;
+        card.style.height = `${maxHeight}px`;
       });
     });
   });
